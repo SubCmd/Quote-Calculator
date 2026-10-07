@@ -1,0 +1,1116 @@
+:root {
+  /* 브랜드 */
+  --brand: #ff7e00;
+  --brand-hover: #e86f00;
+  --brand-soft: #fff4e9;
+  --brand-border: #ffd0a3;
+  /* #ff7e00 은 흰 배경에서 대비 2.5:1 이라 글자색으로 못 쓴다. 글자는 이 값을 쓴다 (5.5:1) */
+  --brand-ink: #a84e00;
+
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --line: #e6e6ea;
+  --line-strong: #d4d4da;
+  --ink: #17171c;
+  --muted: #6c6c78;
+  --danger: #b42318;
+  --danger-soft: #fef4f3;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgb(20 20 30 / 5%), 0 10px 28px -20px rgb(20 20 30 / 25%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0 0 4rem;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "Malgun Gothic",
+    sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 헤더 ---------- */
+
+.app-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1.25rem 1.25rem 1.125rem;
+  margin-bottom: 1.75rem;
+}
+
+.app-header-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand-ink);
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.brand::before {
+  content: "";
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--brand), #ffa347);
+}
+
+h1 {
+  font-size: 1.625rem;
+  letter-spacing: -0.025em;
+  margin: 0 0 0.25rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* ---------- 상품 탭 ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.3125rem;
+  margin-bottom: 1.5rem;
+  background: #ededf0;
+  border-radius: var(--radius);
+}
+
+.tab {
+  flex: 1 1 auto;
+  appearance: none;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  padding: 0.5625rem 0.875rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab.selected {
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px -2px rgb(255 126 0 / 55%);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 2px;
+}
+
+/* ---------- 2단 레이아웃 ---------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- 옵션 그룹 ---------- */
+
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem 1.125rem 1.125rem;
+  margin: 0 0 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+fieldset:last-of-type {
+  margin-bottom: 0;
+}
+
+legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  padding: 0;
+  margin-bottom: 0.625rem;
+}
+
+/* 몇 번째 선택인지 보이면 따라가기 쉽다 */
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+fieldset:not(.locked):has(input:checked) .step {
+  background: var(--brand);
+  color: #fff;
+}
+
+.required-mark {
+  color: var(--danger);
+  margin-left: -0.25rem;
+}
+
+fieldset.locked {
+  background: #fbfbfc;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+fieldset.locked legend {
+  color: var(--muted);
+}
+
+fieldset.locked .step {
+  background: #eeeef1;
+  color: var(--muted);
+}
+
+.lock-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0 0 0.375rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* ---------- 옵션 행 ---------- */
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  transition:
+    background 0.1s,
+    border-color 0.1s;
+}
+
+.option-row + .option-row {
+  margin-top: 0.25rem;
+}
+
+.option-row input {
+  flex: none;
+  width: 1.0625rem;
+  height: 1.0625rem;
+  margin: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.option-row label {
+  flex: 1;
+  padding: 0.5625rem 0;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+fieldset:not(.locked) .option-row:hover {
+  background: #f7f7f9;
+}
+
+fieldset:not(.locked) .option-row:not(.select-all):has(input:checked) {
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+}
+
+fieldset:not(.locked) .option-row:not(.select-all):has(input:checked) label {
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+
+.option-row:has(input:focus-visible) {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 1px;
+}
+
+fieldset.locked .option-row label,
+fieldset.locked .option-row input {
+  cursor: not-allowed;
+}
+
+.option-row.select-all {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--line-strong);
+  border-radius: 0;
+}
+
+.option-row.select-all:hover {
+  background: none;
+}
+
+.option-row.select-all label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.group-error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+
+/* ---------- 요약 ---------- */
+
+.summary {
+  position: sticky;
+  top: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 900px) {
+  .summary {
+    position: static;
+  }
+}
+
+.summary h2 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+}
+
+.summary table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary td {
+  padding: 0.3125rem 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.summary .label {
+  color: var(--muted);
+  padding-right: 0.5rem;
+}
+
+.summary .subtotal td {
+  border-top: 1px solid var(--line);
+  padding-top: 0.625rem;
+}
+
+.summary .discount td:last-child {
+  color: var(--brand-ink);
+  font-weight: 700;
+}
+
+/* 총액은 가장 먼저 눈에 들어와야 한다 */
+.total-box {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--brand-soft);
+}
+
+.total-box dt {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--brand-ink);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.total-box dt small {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.total-box dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--brand-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tax-note {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0.75rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-note {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  margin: 0.75rem 0 0;
+}
+
+.violations {
+  list-style: none;
+  border: 1px solid #f1c9c4;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  padding: 0.75rem 0.875rem;
+  margin: 0;
+}
+
+.violations li {
+  color: var(--danger);
+  font-size: 0.8125rem;
+}
+
+.violations li + li {
+  margin-top: 0.25rem;
+}
+
+/* ---------- 모바일 고정 총액 바 ---------- */
+
+.mobile-total {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobile-total {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 20px -12px rgb(20 20 30 / 35%);
+  }
+
+  .mobile-total .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .mobile-total .value {
+    font-size: 1.125rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--brand-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body {
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* ---------- 계산 중 ---------- */
+
+.calculating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+
+.spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  height: 0.75rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #eeeef1 25%, #f6f6f8 50%, #eeeef1 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.skeleton + .skeleton {
+  margin-top: 0.75rem;
+}
+
+.skeleton.wide {
+  height: 1.75rem;
+  margin-top: 1.25rem;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* ---------- 공용 버튼 ---------- */
+
+.primary,
+.ghost {
+  appearance: none;
+  border-radius: 9px;
+  padding: 0.5rem 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s,
+    color 0.12s;
+}
+
+.primary {
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.primary:hover:not(:disabled) {
+  border-color: var(--brand-hover);
+  background: var(--brand-hover);
+}
+
+.ghost {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+
+.primary:disabled,
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 2px;
+}
+
+/* ---------- 공용 보조 표기 ---------- */
+
+.muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.form-error {
+  margin: 0.5rem 0 0;
+  color: var(--danger);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* 화면에서는 숨기지만 스크린 리더에는 읽힌다. 입력마다 label 을 다는 규칙(ui.md) 때문에 필요하다. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.card {
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card > h2 {
+  margin: 0 0 0.875rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- 관리자 로그인 ---------- */
+
+.admin-login {
+  max-width: 24rem;
+  margin: 4rem auto 0;
+  padding: 0 1.25rem;
+}
+
+.admin-login h1 {
+  margin-bottom: 0.375rem;
+}
+
+.admin-login .card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 1.5rem;
+}
+
+.admin-login label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.admin-login input {
+  padding: 0.5625rem 0.75rem;
+  font: inherit;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.admin-login input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+  border-color: var(--brand);
+}
+
+.admin-login .primary {
+  margin-top: 0.625rem;
+  padding: 0.625rem;
+}
+
+/* ---------- 관리자 헤더 ---------- */
+
+.admin-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ---------- 가격 규칙 표 ---------- */
+
+/* 입력이 많아 좁은 화면에서는 넘친다. 줄바꿈으로 뭉개지 말고 가로 스크롤을 준다. */
+.card:has(.rules) {
+  overflow-x: auto;
+}
+
+.rules {
+  width: 100%;
+  min-width: 46rem;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.rules th {
+  padding: 0 0.5rem 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.rules th.num {
+  text-align: right;
+}
+
+.rules td {
+  padding: 0.75rem 0.5rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.rules tr:last-child td {
+  border-bottom: none;
+}
+
+.rules td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.row-name {
+  display: block;
+  font-weight: 600;
+}
+
+.row-meta {
+  display: block;
+  margin-top: 0.1875rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.num-input {
+  width: 7.5rem;
+  padding: 0.4375rem 0.5rem;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.num-input.narrow {
+  width: 4rem;
+}
+
+.num-input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+  border-color: var(--brand);
+}
+
+.unit {
+  margin-left: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.effective {
+  white-space: nowrap;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.1875rem;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.effective input[type="datetime-local"] {
+  padding: 0.375rem 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.effective .num-input + .field-label {
+  margin-top: 0.5rem;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+  min-width: 11rem;
+}
+
+.actions .primary,
+.actions .ghost {
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.75rem;
+}
+
+.preview {
+  margin: 0.25rem 0 0;
+  padding: 0.4375rem 0.625rem;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+  color: var(--brand-ink);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview.unavailable {
+  background: var(--danger-soft);
+  border-color: #f3c9c5;
+  color: var(--danger);
+}
+
+/* ---------- 변경 이력 ---------- */
+
+.audit {
+  margin-top: 2rem;
+}
+
+.audit h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.audit-table th {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: #fafafb;
+  border-bottom: 1px solid var(--line);
+}
+
+.audit-table td {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.audit-table tr:last-child td {
+  border-bottom: none;
+}
+
+.audit-table td:first-child {
+  white-space: nowrap;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 견적 요청 폼 ─────────────────────────────────────────── */
+
+.request {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+.request h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+.request .hint {
+  margin: 0 0 0.25rem;
+}
+.request label {
+  margin-top: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.request input {
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 0.5rem 0.625rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+.request input:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+.request button {
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.875rem;
+}
+
+/* ── 저장된 견적서 ─────────────────────────────────────────── */
+
+.quote-sheet {
+  max-width: 34rem;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.quote-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.status-badge {
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  padding: 0.1875rem 0.625rem;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.status-badge.expired {
+  border-color: #f3c7c3;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.quote-id {
+  font-size: 0.75rem;
+  color: var(--muted);
+  /* 난수 문자열이라 좁은 화면에서 줄바꿈 지점을 찾지 못한다. */
+  word-break: break-all;
+}
+.expired-note {
+  margin: 0 0 1rem;
+  border: 1px solid #f3c7c3;
+  border-radius: 10px;
+  padding: 0.625rem 0.75rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.quote-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.quote-table th,
+.quote-table td {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9375rem;
+  text-align: left;
+}
+.quote-table .product-row th {
+  padding-top: 0.25rem;
+  border-bottom: none;
+  color: var(--brand-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.quote-table .label {
+  color: var(--muted);
+}
+.quote-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.quote-table .subtotal td {
+  font-weight: 600;
+}
+.quote-table .discount td {
+  color: var(--brand-ink);
+}
+.quote-sheet .hint {
+  margin-top: 1rem;
+  line-height: 1.6;
+}
+
+/* ── 관리자 견적 목록·상세 ─────────────────────────────────── */
+
+.admin-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Link 는 button 이 아니라 a 다. .ghost 가 기대하는 모양을 맞춰 준다. */
+a.ghost {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.chip {
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0.3125rem 0.75rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.chip:hover {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+}
+.chip.selected {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.quote-list {
+  width: 100%;
+  border-collapse: collapse;
+}
+.quote-list th,
+.quote-list td {
+  padding: 0.625rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.875rem;
+  text-align: left;
+  white-space: nowrap;
+}
+.quote-list th {
+  background: #fafafb;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.quote-list .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.quote-list .when a {
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.card:has(.quote-list) {
+  overflow-x: auto;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.375rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.detail-grid dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.detail-grid dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+main > .card + .card {
+  margin-top: 1rem;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.status-actions .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}

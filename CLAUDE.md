@@ -1,0 +1,58 @@
+# quote_calculator
+
+옵션 선택을 기반으로 견적 금액을 계산하고, 관리자가 가격 규칙을 직접 관리하는 웹 애플리케이션.
+대상은 일반 소비자(B2C)다. 화면에 보이는 금액이 곧 지불 금액이어야 한다.
+
+## 기술 스택
+
+- Next.js (App Router) + TypeScript
+- Next.js API Routes
+- PostgreSQL + Prisma
+- 테스트: Vitest
+
+## 절대 규칙
+
+1. **금액 계산은 Pricing Service 안에서만 한다.** UI, API Route, Repository, 데이터베이스는 금액을 계산하지 않는다.
+2. **금액은 원 단위 정수(`Int`)로 다룬다.** 부동소수점 연산으로 금액을 만들지 않는다.
+   모든 금액은 **부가세 포함** 금액이다. 총액에 세액을 더하는 단계는 없다.
+3. **레이어 호출 방향을 거스르지 않는다.** 규칙은 `.claude/rules/architecture.md`.
+4. **가격 규칙 값을 코드에 하드코딩하지 않는다.** 옵션 금액·할인율·할인 조건은 모두 데이터베이스에서 읽는다.
+5. **수량 개념이 없다.** 금액은 선택한 옵션의 합으로만 결정된다. (ADR-0008)
+6. **확정된 견적은 수정하지 않는다.** 금액이 바뀌어야 하면 새 버전을 만든다.
+7. Pricing Service를 수정하면 같은 커밋에서 테스트를 추가하거나 갱신한다.
+
+## 문서 구조
+
+| 문서 | 언제 읽는가 |
+| ---- | ---- |
+| `CLAUDE.md` | 항상 |
+| `.claude/rules/architecture.md` | 레이어·의존 방향을 다룰 때 |
+| `.claude/rules/pricing.md` | 계산 로직을 구현할 때 |
+| `.claude/rules/database.md` | 스키마·마이그레이션을 다룰 때 |
+| `.claude/rules/ui.md` | 화면을 만들 때 |
+| `.claude/rules/admin.md` | 관리자 기능을 만들 때 |
+| `.claude/rules/testing.md` | 테스트를 작성할 때 |
+| `docs/requirements.md` | 무엇을 만들어야 하는지 확인할 때 |
+| `docs/pricing-rules.md` | 가격 업무 규칙을 확인할 때 |
+| `docs/architecture.md` | 전체 구성과 디렉터리를 확인할 때 |
+| `docs/decisions/*.md` | 왜 그렇게 설계했는지 확인할 때 |
+
+`.claude/rules/`는 **구현 규칙**(어떻게 쓸 것인가), `docs/`는 **프로젝트 지식**(무엇을·왜)이다.
+규칙과 문서가 충돌하면 `CLAUDE.md` → `.claude/rules/` → `docs/` 순으로 우선한다.
+
+## 작업 방식
+
+- 구현 전에 해당 영역의 규칙 파일을 읽는다.
+- 업무 규칙이 문서에 없으면 추측해서 구현하지 않고 먼저 질문한다.
+- 설계 판단을 했으면 `docs/decisions/`에 ADR을 남긴다.
+- 문서와 코드가 어긋나면 코드를 고치기 전에 문서를 먼저 고친다.
+
+## 용어
+
+| 용어 | 의미 |
+| ---- | ---- |
+| 견적(Quote) | 고객에게 제시되는 금액 산출 결과 한 건 |
+| 견적 항목(QuoteItem) | 견적을 구성하는 상품/서비스 한 줄 |
+| 옵션(Option) | 항목에 붙는 선택 사항. 금액에 영향을 줄 수 있다 |
+| 가격 규칙(PricingRule) | 옵션 금액·할인 규칙 등 계산 입력값 |
+| 스냅샷(Snapshot) | 계산 시점의 가격 규칙을 그대로 보존한 기록 |

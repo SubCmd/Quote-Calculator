@@ -1,0 +1,217 @@
+// 규칙: .claude/rules/database.md
+// 금액은 모두 Int(원 단위, 부가세 포함). 요율은 Decimal(7,4).
+// 가격 규칙은 UPDATE 하지 않고 effectiveFrom 을 가진 새 행을 INSERT 한다. (ADR-0002)
+// 수량 개념이 없다. 금액은 선택한 옵션 금액의 합이다. (ADR-0008)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DiscountType {
+  FIXED
+  RATE
+}
+
+enum QuoteStatus {
+  DRAFT
+  REQUESTED
+  CONFIRMED
+  EXPIRED
+  CANCELED
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  optionGroups OptionGroup[]
+  discounts    DiscountRule[]
+  quoteItems   QuoteItem[]
+
+  @@map("product")
+}
+
+model OptionGroup {
+  id           String   @id @default(cuid())
+  productId    String   @map("product_id")
+  code         String
+  name         String
+  /// true 면 그룹에서 최소 1개를 골라야 한다
+  required     Boolean  @default(false)
+  /// true 면 그룹에서 1개만 고를 수 있다 (라디오). false 면 여러 개 (체크박스)
+  singleSelect Boolean  @default(true) @map("single_select")
+  /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹. null 이면 제약 없음 (ADR-0010)
+  dependsOnGroupId String? @map("depends_on_group_id")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  product Product         @relation(fields: [productId], references: [id])
+  options ProductOption[]
+
+  dependsOnGroup OptionGroup?  @relation("GroupPrerequisite", fields: [dependsOnGroupId], references: [id])
+  dependents     OptionGroup[] @relation("GroupPrerequisite")
+
+  @@unique([productId, code])
+  @@map("option_group")
+}
+
+model ProductOption {
+  id      String @id @default(cuid())
+  groupId String @map("group_id")
+  /// 버전이 바뀌어도 유지되는 식별자. 할인 조건은 이 값으로 연결한다 (ADR-0009)
+  code    String
+  name    String
+  /// 선택 시 더해지는 금액(원, 부가세 포함). 금액에 영향이 없으면 0
+  amount    Int      @default(0)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  /// 적용 시작 일시. 금액 수정은 새 행 INSERT 로 한다
+  effectiveFrom DateTime @map("effective_from")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+
+  group OptionGroup @relation(fields: [groupId], references: [id])
+
+  @@unique([groupId, code, effectiveFrom])
+  @@index([groupId, effectiveFrom])
+  @@map("product_option")
+}
+
+model DiscountRule {
+  id        String       @id @default(cuid())
+  productId String       @map("product_id")
+  code      String
+  name      String
+  type      DiscountType
+  /// FIXED 일 때 할인 금액(원). RATE 일 때 0
+  amount    Int          @default(0)
+  /// RATE 일 때 할인율. 15% = 0.1500. FIXED 일 때 0
+  rate      Decimal      @default(0) @db.Decimal(7, 4)
+  /// 할인액 동률 시 낮은 값이 우선 (ADR-0006)
+  priority  Int          @default(100)
+  isActive  Boolean      @default(true) @map("is_active")
+  effectiveFrom DateTime @map("effective_from")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  createdBy String?      @map("created_by")
+
+  product    Product             @relation(fields: [productId], references: [id])
+  conditions DiscountCondition[]
+
+  @@unique([productId, code, effectiveFrom])
+  @@index([productId, effectiveFrom])
+  @@map("discount_rule")
+}
+
+/// 할인 적용 조건. 여기 적힌 옵션을 **전부** 선택해야 할인 후보가 된다 (ADR-0009)
+/// 조건이 한 행도 없으면 항상 후보다.
+/// 옵션 행 id 가 아니라 코드로 가리킨다. 금액 버전이 바뀌어도 조건이 깨지지 않는다.
+model DiscountCondition {
+  id             String @id @default(cuid())
+  discountRuleId String @map("discount_rule_id")
+  groupCode      String @map("group_code")
+  optionCode     String @map("option_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  discountRule DiscountRule @relation(fields: [discountRuleId], references: [id], onDelete: Cascade)
+
+  @@unique([discountRuleId, groupCode, optionCode])
+  @@map("discount_condition")
+}
+
+enum AuditAction {
+  OPTION_VERSION_ADDED
+  DISCOUNT_VERSION_ADDED
+  OPTION_DEACTIVATED
+  QUOTE_STATUS_CHANGED
+  /// 개인정보 열람 기록. 상세 화면을 열 때마다 남는다 (.claude/rules/admin.md)
+  QUOTE_VIEWED
+  /// 선택만 복사하고 금액은 다시 계산한다 (ADR-0014)
+  QUOTE_CLONED
+}
+
+/// 가격 규칙 변경 이력. 수정·삭제하지 않는다. 변경 트랜잭션 안에서 함께 기록한다.
+model AuditLog {
+  id     String      @id @default(cuid())
+  action AuditAction
+  /// 변경한 사람. 인증이 공유 비밀번호라 지금은 'admin' 고정 (ADR-0011)
+  actor  String
+  /// 무엇을 바꿨는지 사람이 읽을 수 있는 한 줄
+  summary String
+  /// 대상 행 식별자 (option code, discount code 등)
+  targetType String @map("target_type")
+  targetId   String @map("target_id")
+  /// 이전값 → 새값. 필드별로 담는다
+  beforeValue Json? @map("before_value")
+  afterValue  Json? @map("after_value")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_log")
+}
+
+model Quote {
+  id          String      @id @default(cuid())
+  /// 고객 조회용 공개 식별자
+  publicId    String      @unique @map("public_id")
+  status      QuoteStatus @default(DRAFT)
+  customerName  String?   @map("customer_name")
+  customerPhone String?   @map("customer_phone")
+  customerEmail String?   @map("customer_email")
+
+  /// 항목 소계 합 (부가세 포함)
+  subtotal       Int
+  discountAmount Int      @map("discount_amount")
+  /// 최종 금액 (부가세 포함)
+  totalAmount    Int      @map("total_amount")
+  appliedDiscountId String? @map("applied_discount_id")
+
+  /// 계산 입력값과 사용한 가격 규칙 버전 스냅샷 (ADR-0002)
+  snapshot     Json
+  calculatedAt DateTime @map("calculated_at")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  createdBy    String?  @map("created_by")
+
+  items QuoteItem[]
+
+  @@index([status, createdAt])
+  @@map("quote")
+}
+
+model QuoteItem {
+  id        String @id @default(cuid())
+  quoteId   String @map("quote_id")
+  productId String @map("product_id")
+  /// 선택 옵션 금액의 합 (버림 전)
+  optionAmount Int @map("option_amount")
+  /// 10원 단위 버림 적용 후
+  subtotal  Int
+  /// 선택 옵션과 옵션별 금액
+  appliedOptions Json @map("applied_options")
+
+  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([quoteId])
+  @@map("quote_item")
+}
