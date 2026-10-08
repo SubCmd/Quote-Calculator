@@ -2,10 +2,18 @@ import { findRuleSet } from "@/repositories/pricing-rule";
 import {
   addDiscountVersion,
   addOptionVersion,
+  createOption as createOptionRow,
+  deactivateOption as deactivateOptionRow,
   findAuditLog,
   findPricingAdminView,
+  reactivateOption as reactivateOptionRow,
   type AdminProductView,
   type AuditEntry,
+  type CreateOptionInput,
+  type DeactivateOptionInput,
+  type DeactivateOptionResult,
+  type ReactivateOptionInput,
+  type ReactivateOptionResult,
 } from "@/repositories/pricing-admin";
 import { calculate } from "@/services/pricing/calculate";
 import type { CalculationResult, RuleSet } from "@/services/pricing/types";
@@ -98,6 +106,7 @@ export interface SaveOptionVersion {
   productId: string;
   groupCode: string;
   optionCode: string;
+  name: string;
   amount: number;
   effectiveFrom: Date | null;
 }
@@ -114,6 +123,27 @@ export async function saveOptionVersion(
   );
 }
 
+export interface CreateOption {
+  productId: string;
+  groupCode: string;
+  optionCode: string;
+  name: string;
+  amount: number;
+  effectiveFrom: Date | null;
+}
+
+/** 기존 그룹 안에 새 옵션을 만든다. (ADR-0023) */
+export async function createOption(
+  input: CreateOption,
+  actor: string,
+  now: Date,
+): Promise<void> {
+  await createOptionRow(
+    { ...input, effectiveFrom: input.effectiveFrom ?? now },
+    actor,
+  );
+}
+
 export interface SaveDiscountVersion {
   productId: string;
   discountCode: string;
@@ -121,6 +151,30 @@ export interface SaveDiscountVersion {
   rateBp: number;
   priority: number;
   effectiveFrom: Date | null;
+}
+
+export type { CreateOptionInput, DeactivateOptionResult, ReactivateOptionResult };
+
+/**
+ * 옵션 비활성화. 삭제하지 않는다. (`.claude/rules/database.md`)
+ * 그 옵션을 조건으로 쓰는 할인도 함께 꺼진다. 어떤 할인이 꺼졌는지 돌려준다. (ADR-0017)
+ */
+export async function deactivateOption(
+  input: DeactivateOptionInput,
+  actor: string,
+): Promise<DeactivateOptionResult> {
+  return deactivateOptionRow(input, actor);
+}
+
+/**
+ * 옵션 재활성화. 함께 꺼진 할인 중 조건이 전부 충족되는 것만 되살린다. (ADR-0023)
+ * 되살린 할인과 보류한 할인을 돌려준다.
+ */
+export async function reactivateOption(
+  input: ReactivateOptionInput,
+  actor: string,
+): Promise<ReactivateOptionResult> {
+  return reactivateOptionRow(input, actor);
 }
 
 export async function saveDiscountVersion(

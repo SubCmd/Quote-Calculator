@@ -11,6 +11,8 @@ export interface CustomerInput {
 export interface SaveQuoteInput {
   productId: string;
   optionIds: string[];
+  /** 고지를 읽고 동의했다는 표시. 검증을 통과한 요청에는 `true` 뿐이다. (ADR-0018) */
+  privacyConsent: true;
   customer: CustomerInput;
 }
 

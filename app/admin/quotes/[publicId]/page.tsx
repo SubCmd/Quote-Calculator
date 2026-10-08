@@ -4,6 +4,7 @@ import { isAdmin, isAdminConfigured } from "@/lib/auth";
 import { formatKRW } from "@/lib/money";
 import { getQuoteDetail } from "@/services/quote/admin-quotes";
 import { statusLabel } from "@/services/quote/transition";
+import { CloneForm } from "./clone-form";
 import { StatusForm } from "./status-form";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,13 @@ export default async function AdminQuoteDetailPage({
           </div>
 
           <h2>고객</h2>
+          {quote.purgedAt && (
+            <p className="notice-warn">
+              보존기간이 지나 연락처를 파기했습니다 (
+              {quote.purgedAt.toLocaleString("ko-KR")}). 되살릴 수 없고, 복제도
+              할 수 없습니다. (ADR-0022)
+            </p>
+          )}
           <dl className="detail-grid">
             <dt>이름</dt>
             <dd>{quote.customerName}</dd>
@@ -63,10 +71,16 @@ export default async function AdminQuoteDetailPage({
             <dd>{quote.customerPhone}</dd>
             <dt>이메일</dt>
             <dd>{quote.customerEmail}</dd>
+            <dt>개인정보 동의</dt>
+            <dd>
+              {quote.privacyConsentAt
+                ? quote.privacyConsentAt.toLocaleString("ko-KR")
+                : "기록 없음 (동의 절차 도입 전 견적)"}
+            </dd>
           </dl>
           <p className="hint">
             이 화면을 연 기록이 변경 이력에 남습니다. 보관 기간이 지난 견적의
-            연락처는 파기 대상입니다. (ADR-0013)
+            연락처는 파기 배치가 비웁니다. (ADR-0013, ADR-0022)
           </p>
         </div>
 
@@ -117,6 +131,20 @@ export default async function AdminQuoteDetailPage({
             <dd>
               <Link href={`/q/${quote.publicId}`}>/q/{quote.publicId}</Link>
             </dd>
+            <dt>견적서</dt>
+            <dd>
+              <Link href={`/q/${quote.publicId}/print`}>인쇄 · PDF로 저장</Link>
+            </dd>
+            {quote.clonedFromPublicId && (
+              <>
+                <dt>복제 원본</dt>
+                <dd>
+                  <Link href={`/admin/quotes/${quote.clonedFromPublicId}`}>
+                    {quote.clonedFromPublicId}
+                  </Link>
+                </dd>
+              </>
+            )}
           </dl>
         </div>
 
@@ -127,6 +155,16 @@ export default async function AdminQuoteDetailPage({
             currentLabel={statusLabel(quote.storedStatus)}
             nextStatuses={quote.nextStatuses}
           />
+        </div>
+
+        <div className="card">
+          <h2>복제</h2>
+          <p className="hint">
+            확정된 견적은 수정하지 않습니다. 금액이 달라져야 하면 복제해 새
+            견적을 만듭니다. 복제본의 금액은 복제 시점 가격 규칙으로 다시
+            계산되므로 원본과 다를 수 있습니다. (ADR-0014)
+          </p>
+          <CloneForm publicId={quote.publicId} />
         </div>
       </main>
     </>

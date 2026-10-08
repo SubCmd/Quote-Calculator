@@ -28,17 +28,23 @@ app/
   layout.tsx                 루트 레이아웃
   page.tsx                   견적 화면 (Server Component)
   quote-form.tsx             선택 위젯 + 견적 요청 폼 (Client Component, 금액 계산 안 함)
-  q/[publicId]/page.tsx      저장된 견적 조회 (스냅샷 표시, 재계산하지 않음)
+                             개인정보 수집 고지 + 필수 동의 체크박스 (ADR-0018)
+                             계산 실패(500·네트워크) 시 빈 금액 대신 사유 표시 (ADR-0021)
+  error.tsx                  고객 경로 렌더링 예외 (digest 만 표기, ADR-0021)
+  not-found.tsx              없는 주소 · notFound() (ADR-0021)
+  q/[publicId]/page.tsx      저장된 견적 조회 (스냅샷 표시, 재계산하지 않음) + 입금 계좌 (ADR-0019)
+  q/[publicId]/print/        인쇄 전용 견적서 (브라우저 인쇄 → PDF 저장, ADR-0016)
   admin/
     page.tsx                 가격 규칙 화면 (Server Component)
-    pricing-admin.tsx        옵션·할인 편집 위젯 (Client Component)
-    quotes/page.tsx          견적 목록 (연락처 마스킹 · 페이지네이션)
-    quotes/[publicId]/       견적 상세 (연락처 전체 · 열람 로그) + 상태 변경 위젯
+    error.tsx                관리자 경로 렌더링 예외 (확인할 곳 안내, ADR-0021)
+    pricing-admin.tsx        옵션·할인 편집 + 옵션 비활성화 위젯 (Client Component)
+    quotes/page.tsx          견적 목록 (상태·기간·고객명 검색 · 연락처 마스킹 · 페이지네이션)
+    quotes/[publicId]/       견적 상세 (연락처 전체 · 열람 로그) + 상태 변경 · 복제 위젯
     login/                   관리자 로그인
   api/
     estimate/route.ts        금액 계산 (저장하지 않음)
     quotes/route.ts          견적 저장 (서버에서 재계산 후 저장)
-    admin/                   login · logout · pricing · preview · quotes/[publicId]/status
+    admin/                   login · logout · pricing · preview · quotes/[publicId]/status · quotes/[publicId]/clone
 middleware.ts                /admin 1차 방어 (쿠키 존재만 확인)
 src/
   services/
@@ -52,26 +58,38 @@ src/
       tax.ts                 공급가액·세액 역산 (표기 전용)
       types.ts               계산 입·출력 타입
     quote/
-      expiry.ts              유효기간 상수 · 만료 파생 상태 (ADR-0012)
+      expiry.ts              유효기간 상수 · 만료 파생 상태 (ADR-0012) · 입금 안내 여부 (ADR-0019)
       transition.ts          상태 전이 허용 여부 (순수 함수, 6절이 기준)
       save-quote.ts          서버 재계산 후 저장 (ADR-0003)
+      clone-quote.ts         선택·연락처만 승계하고 금액은 재계산 (ADR-0014)
+      search-range.ts        검색 기간 경계 해석 (KST 고정, 순수 함수, ADR-0015)
       get-quote.ts           publicId 로 조회 + 표시 상태 계산
       admin-quotes.ts        관리자 목록·상세·상태 변경 경유
       types.ts               견적 입·출력 타입
     catalog/catalog.ts       카탈로그 조회 경유
-    admin/pricing-admin.ts   관리자 조회·미리보기·버전 추가
+    privacy/
+      retention.ts           보존기간 상수·파기 경계 (순수 함수, ADR-0022)
+      purge.ts               파기 실행 경유 (dry-run 포함)
+    admin/
+      pricing-admin.ts       관리자 조회·미리보기·버전 추가
+      login-throttle.ts      로그인 잠금 판정 (순수 함수. 한도·창 상수, ADR-0020)
+      login.ts               실패 기록 조회 → 판정 함수 호출 · 성공/실패 반영
   repositories/
     pricing-rule.ts          유효 버전 가격 규칙 조회
     product.ts               카탈로그 조회 (금액 제외)
     quote.ts                 견적 저장·조회
-    pricing-admin.ts         관리자 조회 + 버전 추가 (감사 로그 동일 트랜잭션)
+    pricing-admin.ts         관리자 조회 + 버전 추가 + 옵션 비활성화 (감사 로그 동일 트랜잭션)
+    admin-login-attempt.ts   로그인 실패 기록·집계·오래된 행 삭제 (ADR-0020)
+    privacy-purge.ts         연락처 비우기 + 검색어 가리기 (감사 로그 동일 트랜잭션, ADR-0022)
     latest-version.ts        버전 중 유효한 1건 고르기
   lib/
     prisma.ts                PrismaClient 싱글턴
     money.ts                 정수 금액 포맷·만분율 연산 헬퍼
     masking.ts               목록용 연락처 마스킹 (ADR-0013)
+    supplier.ts              견적서 발행처 정보 (ADR-0016) · 입금 계좌 (ADR-0019) — 둘 다 환경변수
     auth.ts                  관리자 권한 판단 (ADR-0011)
     auth-cookie.ts           쿠키 이름 (Edge 런타임용 분리)
+    client-ip.ts             요청자 IP (헤더뿐이라 위조 가능, ADR-0020)
     validation/              zod 입력 스키마 (estimate · quote · admin)
 prisma/
   schema.prisma
@@ -80,7 +98,7 @@ docs/
 .claude/rules/
 ```
 
-아직 만들지 않은 것: 견적 복제, PDF 출력, 개인정보 파기 배치(ADR-0013)
+아직 만들지 않은 것: 개인정보 파기 배치(ADR-0013), 견적서 이메일 발송(F-5-2 미확정)
 
 ## 3. 가격 계산 흐름
 
@@ -109,6 +127,8 @@ PricingService.estimate(input, now)
 - 선택이 없으면 총액 0원이 정상 결과다. 위반 목록이 비어 있는 0원과 계산 거부는 다르다.
 - `/api/estimate`는 **읽기 전용**이다. 아무것도 저장하지 않는다.
 - 저장은 `/api/quotes`에서 하고, 저장 시 계산을 **서버에서 다시 수행**한다. 클라이언트가 보낸 금액은 신뢰하지 않는다.
+- 저장에는 **개인정보 수집·이용 동의가 전제**다. `privacyConsent` 가 `true` 가 아닌 요청은 400 으로 거부하고,
+  동의 시각을 `Quote.privacyConsentAt` 에 남긴다. 복제본은 원본의 동의를 승계한다. (ADR-0018)
 
 ## 4. 가격 규칙 버전 관리
 
@@ -130,10 +150,12 @@ effectiveFrom 을 가진 새 행 INSERT
 | 경계 | 책임 |
 | ---- | ---- |
 | Client → API | 입력 검증은 서버가 한다. 클라이언트 검증은 UX 보조일 뿐이다 |
+| Client → 관리자 로그인 | 시도 횟수를 센다. IP별 5회 / 전체 20회(10분)에 닿으면 비밀번호를 비교하지 않고 `429` (ADR-0020) |
 | API → Service | API는 금액을 만들지 않는다. DTO 변환과 인증만 한다 |
 | Service → Repository | Service는 SQL/Prisma 쿼리를 직접 쓰지 않는다 |
 | Repository → DB | Repository는 업무 판단을 하지 않는다. 조건부 금액 로직을 넣지 않는다 |
 | DB | 계산을 수행하지 않는다. 트리거·계산 컬럼으로 금액을 만들지 않는다 |
+| 예외 → 화면 | 예외 메시지를 화면에 쓰지 않는다. `error.digest` 만 보여준다 (ADR-0021) |
 
 ## 6. 상태 전이
 
@@ -147,6 +169,8 @@ DRAFT ──→ REQUESTED ──→ CONFIRMED
 `CONFIRMED`·`CANCELED` 는 종착 상태다. 같은 상태로 다시 바꾸는 요청도 거부한다.
 
 `CONFIRMED` 이후에는 금액·선택 내역을 변경하지 않는다. 변경이 필요하면 복제해 새 견적을 만든다.
+복제는 선택과 연락처만 승계하고 금액은 복제 시점 규칙으로 다시 계산한다. 원본은 건드리지 않고,
+복제본은 `REQUESTED` 로 태어난다. 지금 계산할 수 없는 선택이면 복제하지 않는다. (ADR-0014)
 
 상태 변경은 `누가 · 언제 · 이전값 → 새값`을 감사 로그에 남기고, 변경과 기록은 같은 트랜잭션에서 수행한다.
 만료된 견적도 `REQUESTED` 이므로 전이 자체는 가능하다. 만료는 표시 상태일 뿐 저장 상태가 아니다. (ADR-0012)

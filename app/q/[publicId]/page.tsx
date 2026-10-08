@@ -1,6 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatKRW } from "@/lib/money";
+import { supplierAccount } from "@/lib/supplier";
 import { splitTax } from "@/services/pricing/tax";
+import { acceptsPayment } from "@/services/quote/expiry";
 import { getQuote } from "@/services/quote/get-quote";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +40,8 @@ export default async function SavedQuotePage({
 
   const tax = splitTax(quote.totalAmount);
   const expired = quote.status === "EXPIRED";
+  // 입금받을 수 없는 견적에는 계좌를 띄우지 않는다. (ADR-0019)
+  const account = acceptsPayment(quote.status) ? supplierAccount() : null;
 
   return (
     <>
@@ -110,9 +115,35 @@ export default async function SavedQuotePage({
             </p>
           )}
 
+          {account && (
+            <section className="account-box" aria-labelledby="account-title">
+              <h2 id="account-title">입금 계좌</h2>
+              <dl>
+                <div>
+                  <dt>은행</dt>
+                  <dd>{account.bankName}</dd>
+                </div>
+                <div>
+                  <dt>예금주</dt>
+                  <dd>{account.holder}</dd>
+                </div>
+                <div>
+                  <dt>계좌번호</dt>
+                  <dd className="account-no">{account.accountNo}</dd>
+                </div>
+              </dl>
+            </section>
+          )}
+
           <p className="hint">
             유효기간 {formatDateTime(quote.expiresAt)}까지 · 이 주소를
             보관하시면 언제든 다시 확인할 수 있습니다.
+          </p>
+
+          <p className="sheet-actions">
+            <Link className="ghost" href={`/q/${quote.publicId}/print`}>
+              견적서 인쇄 · PDF로 저장
+            </Link>
           </p>
         </article>
       </main>

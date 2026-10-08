@@ -41,8 +41,33 @@ function pruneUnmetGroups(
 }
 
 /**
+ * 수집 전에 고지할 내용. 여기 없는 항목을 받으면 안 된다. (ADR-0018)
+ * 보유기간은 ADR-0013 의 실제 정책과 같은 값이어야 한다.
+ */
+const CONSENT_NOTICE: { label: string; value: string }[] = [
+  {
+    label: "수집·이용 목적",
+    value: "견적 신청자 확인 및 입력한 조건에 따른 견적 결과 제공",
+  },
+  {
+    label: "수집 항목",
+    value: "이름, 휴대전화번호 (필수) / 이메일 (선택)",
+  },
+  {
+    label: "보유·이용 기간",
+    value:
+      "견적 생성 후 1년. 견적이 확정된 경우 확정 후 5년 (전자상거래법상 계약·결제 기록 보존)",
+  },
+  {
+    label: "동의 거부 권리",
+    value:
+      "동의를 거부할 수 있습니다. 다만 동의하지 않으면 견적 결과 제공이 제한될 수 있습니다.",
+  },
+];
+
+/**
  * 견적 요청. 금액은 보내지 않는다. 서버가 같은 선택으로 다시 계산한다. (ADR-0003)
- * 받는 개인정보는 연락 수단뿐이다. (ADR-0013)
+ * 받는 개인정보는 연락 수단뿐이고(ADR-0013), 수집 전에 동의를 받는다. (ADR-0018)
  */
 function RequestForm({
   productId,
@@ -57,6 +82,7 @@ function RequestForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +97,7 @@ function RequestForm({
       body: JSON.stringify({
         productId,
         optionIds,
+        privacyConsent: consent,
         customer: { name, phone, email },
       }),
     });
@@ -92,6 +119,30 @@ function RequestForm({
       <p className="hint">
         연락받을 정보만 남겨 주세요. 저장 후 견적 주소를 보여드립니다.
       </p>
+
+      {/* 수집 전에 고지하고 동의를 받는다. 고지 없이 입력란을 먼저 보여주지 않는다. (ADR-0018) */}
+      <section className="consent" aria-labelledby="consent-title">
+        <h4 id="consent-title">개인정보 수집·이용 동의</h4>
+        <dl>
+          {CONSENT_NOTICE.map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="consent-check">
+          <input
+            type="checkbox"
+            id="privacy-consent"
+            checked={consent}
+            onChange={(event) => setConsent(event.target.checked)}
+          />
+          <label htmlFor="privacy-consent">
+            <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다.
+          </label>
+        </div>
+      </section>
 
       <label htmlFor="customer-name">
         이름<span className="required-mark">*</span>
@@ -133,11 +184,18 @@ function RequestForm({
 
       {error && <p className="form-error">{error}</p>}
 
-      <button type="submit" className="primary" disabled={!ready || saving}>
+      <button
+        type="submit"
+        className="primary"
+        disabled={!ready || !consent || saving}
+      >
         {saving ? "저장 중…" : "이 금액으로 견적 요청"}
       </button>
       {!ready && (
         <p className="hint">항목을 선택하면 견적을 요청할 수 있습니다.</p>
+      )}
+      {ready && !consent && (
+        <p className="hint">개인정보 수집·이용에 동의하면 요청할 수 있습니다.</p>
       )}
     </form>
   );
@@ -150,6 +208,8 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
   const [result, setResult] = useState<EstimateResponse | null>(null);
   const [violations, setViolations] = useState<Violation[]>([]);
   const [calculating, setCalculating] = useState(false);
+  // 계산이 실패하면 아무것도 말하지 않는 빈 화면이 된다. 금액이 안 나온 이유는 말해야 한다. (ADR-0021)
+  const [estimateFailed, setEstimateFailed] = useState(false);
 
   const product = catalog.find((p) => p.id === productId)!;
   const latestRequest = useRef(0);
@@ -200,10 +260,21 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
         signal: controller.signal,
       })
         .then(async (response) => {
+          // 서버 예외는 JSON 이 아니다. 파싱하기 전에 걸러야 한다. (ADR-0021)
+          if (response.status >= 500) {
+            if (latestRequest.current !== requestId) return;
+            setResult(null);
+            setViolations([]);
+            setEstimateFailed(true);
+            setCalculating(false);
+            return;
+          }
+
           const body = await response.json();
           // 응답 도착 순서를 신뢰하지 않는다. 마지막 요청의 응답만 반영한다.
           if (latestRequest.current !== requestId) return;
 
+          setEstimateFailed(false);
           if (body.ok === true) {
             setResult(body as EstimateResponse);
             setViolations([]);
@@ -219,6 +290,11 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
         })
         .catch(() => {
           if (controller.signal.aborted) return;
+          if (latestRequest.current !== requestId) return;
+          // 네트워크가 끊겨도 금액이 없는 이유는 말해야 한다.
+          setResult(null);
+          setViolations([]);
+          setEstimateFailed(true);
           setCalculating(false);
         });
     }, DEBOUNCE_MS);
@@ -336,6 +412,12 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                 <div className="skeleton" />
                 <div className="skeleton wide" />
               </>
+            )}
+
+            {!calculating && estimateFailed && (
+              <p className="form-error" role="alert">
+                금액을 계산하지 못했습니다. 잠시 후 다시 선택해 주세요.
+              </p>
             )}
 
             {/* 그룹에 속한 위반은 해당 그룹 옆에만 표시한다. 여기서 또 보여주면 중복이다. */}

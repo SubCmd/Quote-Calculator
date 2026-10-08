@@ -4,9 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { isAdmin, isAdminConfigured } from "@/lib/auth";
 import { formatKRW } from "@/lib/money";
 import { listQuotes } from "@/services/quote/admin-quotes";
+import { parseSearchRange } from "@/services/quote/search-range";
 import { statusLabel } from "@/services/quote/transition";
 
 export const dynamic = "force-dynamic";
+
+const ACTOR = "admin";
 
 const FILTERS: { value: QuoteStatus | null; label: string }[] = [
   { value: null, label: "전체" },
@@ -26,14 +29,22 @@ function parsePage(raw: string | undefined): number {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
-function filterHref(status: QuoteStatus | null): string {
-  return status === null ? "/admin/quotes" : `/admin/quotes?status=${status}`;
+/** 공백만 넣은 검색은 조건 없음이다. 전체 조회를 검색으로 기록하지 않는다. (ADR-0015) */
+function parseName(raw: string | undefined): string | null {
+  const name = raw?.trim();
+  return name ? name : null;
 }
 
 export default async function AdminQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    page?: string;
+    name?: string;
+    from?: string;
+    to?: string;
+  }>;
 }) {
   if (!isAdminConfigured()) notFound();
 
@@ -42,19 +53,36 @@ export default async function AdminQuotesPage({
 
   const query = await searchParams;
   const status = parseStatus(query.status);
+  const customerName = parseName(query.name);
+  const { from, until } = parseSearchRange(query.from, query.to);
+
+  // 이름으로 검색하면 열람 기록이 남는다.
   const { items, total, page, pageCount } = await listQuotes(
     parsePage(query.page),
-    status,
+    { status, customerName, from, until },
+    ACTOR,
     now,
   );
 
-  const pageHref = (target: number) => {
+  const hrefWith = (overrides: Record<string, string | null>) => {
     const params = new URLSearchParams();
-    if (status) params.set("status", status);
-    if (target > 1) params.set("page", String(target));
+    const merged: Record<string, string | null> = {
+      status,
+      name: query.name?.trim() ?? null,
+      from: query.from ?? null,
+      to: query.to ?? null,
+      ...overrides,
+    };
+    for (const [key, value] of Object.entries(merged))
+      if (value) params.set(key, value);
     const search = params.toString();
     return search ? `/admin/quotes?${search}` : "/admin/quotes";
   };
+
+  const filterHref = (value: QuoteStatus | null) =>
+    hrefWith({ status: value, page: null });
+  const pageHref = (target: number) =>
+    hrefWith({ page: target > 1 ? String(target) : null });
 
   return (
     <>
@@ -81,6 +109,40 @@ export default async function AdminQuotesPage({
         </div>
       </header>
       <main>
+        <form className="card search-form" method="get" action="/admin/quotes">
+          {status && <input type="hidden" name="status" value={status} />}
+          <div className="search-field">
+            <label htmlFor="name">고객명</label>
+            <input
+              id="name"
+              name="name"
+              type="search"
+              defaultValue={query.name ?? ""}
+              placeholder="이름 일부"
+            />
+          </div>
+          <div className="search-field">
+            <label htmlFor="from">시작일</label>
+            <input id="from" name="from" type="date" defaultValue={query.from ?? ""} />
+          </div>
+          <div className="search-field">
+            <label htmlFor="to">종료일</label>
+            <input id="to" name="to" type="date" defaultValue={query.to ?? ""} />
+          </div>
+          <div className="search-actions">
+            <button type="submit" className="primary">
+              검색
+            </button>
+            <Link className="ghost" href="/admin/quotes">
+              초기화
+            </Link>
+          </div>
+          <p className="hint">
+            기간은 요청 일시 기준이고 종료일 당일을 포함합니다. 고객명으로
+            검색하면 검색어가 변경 이력에 남습니다. (ADR-0015)
+          </p>
+        </form>
+
         <nav className="filters" aria-label="상태 필터">
           {FILTERS.map((filter) => (
             <Link

@@ -7,6 +7,10 @@ import { z } from "zod";
 export const saveQuoteSchema = z.object({
   productId: z.string().min(1),
   optionIds: z.array(z.string().min(1)).default([]),
+  // 동의 없이 개인정보를 저장하지 않는다. true 가 아닌 모든 값이 거부다. (ADR-0018)
+  privacyConsent: z.literal(true, {
+    errorMap: () => ({ message: "개인정보 수집·이용에 동의해 주세요." }),
+  }),
   customer: z.object({
     name: z.string().trim().min(1, "이름을 입력해 주세요.").max(50),
     phone: z

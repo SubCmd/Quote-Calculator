@@ -4,6 +4,7 @@ import {
   findQuoteDetail,
   findQuoteList,
   findQuoteStatus,
+  logQuoteSearch,
   logQuoteView,
   updateQuoteStatus,
 } from "@/repositories/quote";
@@ -32,16 +33,29 @@ export interface AdminQuoteList {
   pageCount: number;
 }
 
+/** 목록 검색 조건. 기간 경계 해석은 `search-range.ts` 가 한다. (ADR-0015) */
+export interface QuoteSearch {
+  status: QuoteStatus | null;
+  customerName: string | null;
+  from: Date | null;
+  until: Date | null;
+}
+
 export async function listQuotes(
   page: number,
-  status: QuoteStatus | null,
+  search: QuoteSearch,
+  actor: string,
   now: Date,
 ): Promise<AdminQuoteList> {
   const { rows, total } = await findQuoteList(
     PAGE_SIZE,
     (page - 1) * PAGE_SIZE,
-    status,
+    search,
   );
+
+  // 이름으로 찾아본 것 자체가 개인정보 조회다. 표시는 그대로 마스킹한다. (ADR-0015)
+  // 검색어는 넘기지 않는다. 기록할 것은 찾아봤다는 사실이다. (ADR-0022)
+  if (search.customerName !== null) await logQuoteSearch(total, actor);
 
   return {
     items: rows.map((row) => ({
@@ -69,6 +83,10 @@ export interface AdminQuoteDetail {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  /** 개인정보 수집·이용 동의 시각. `null` 이면 동의 절차 도입 전 견적이다. (ADR-0018) */
+  privacyConsentAt: Date | null;
+  /** 연락처를 비운 시각. 빈 연락처가 파기 때문인지 구분한다. (ADR-0022) */
+  purgedAt: Date | null;
   items: SavedQuoteItem[];
   subtotal: number;
   discountAmount: number;
@@ -77,6 +95,8 @@ export interface AdminQuoteDetail {
   calculatedAt: Date;
   expiresAt: Date;
   createdAt: Date;
+  /** 복제본이면 원본 주소. 금액은 원본과 다를 수 있다. (ADR-0014) */
+  clonedFromPublicId: string | null;
   /** 이 견적에서 지금 누를 수 있는 다음 상태 */
   nextStatuses: { value: QuoteStatus; label: string }[];
 }
@@ -102,6 +122,8 @@ export async function getQuoteDetail(
     customerName: quote.customerName ?? "—",
     customerPhone: formatPhone(quote.customerPhone),
     customerEmail: quote.customerEmail ?? "—",
+    privacyConsentAt: quote.privacyConsentAt,
+    purgedAt: quote.purgedAt,
     items: quote.items,
     subtotal: quote.subtotal,
     discountAmount: quote.discountAmount,
@@ -110,6 +132,7 @@ export async function getQuoteDetail(
     calculatedAt: quote.calculatedAt,
     expiresAt: quote.expiresAt,
     createdAt: quote.createdAt,
+    clonedFromPublicId: quote.snapshot.clonedFromPublicId ?? null,
     nextStatuses: allowedTransitions(quote.status).map((value) => ({
       value,
       label: statusLabel(value),

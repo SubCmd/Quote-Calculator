@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { QUOTE_VALIDITY_DAYS, displayStatus, expiresAtFrom } from "./expiry";
+import {
+  QUOTE_VALIDITY_DAYS,
+  acceptsPayment,
+  displayStatus,
+  expiresAtFrom,
+} from "./expiry";
 
 const CALCULATED_AT = new Date("2026-03-01T00:00:00.000Z");
 const EXPIRES_AT = new Date("2026-03-31T00:00:00.000Z");
@@ -36,5 +41,27 @@ describe("displayStatus (ADR-0012)", () => {
   it("취소된 견적은 유효기간이 지나도 취소 상태로 남는다", () => {
     const now = new Date("2027-01-01T00:00:00.000Z");
     expect(displayStatus("CANCELED", EXPIRES_AT, now)).toBe("CANCELED");
+  });
+});
+
+describe("acceptsPayment (ADR-0019)", () => {
+  it("요청 접수된 견적에는 입금 계좌를 안내한다", () => {
+    expect(acceptsPayment("REQUESTED")).toBe(true);
+  });
+
+  it("확정된 견적에도 입금 계좌를 안내한다", () => {
+    expect(acceptsPayment("CONFIRMED")).toBe(true);
+  });
+
+  it("작성 중인 견적에도 입금 계좌를 안내한다", () => {
+    expect(acceptsPayment("DRAFT")).toBe(true);
+  });
+
+  it("만료된 견적에는 입금 계좌를 안내하지 않는다", () => {
+    expect(acceptsPayment("EXPIRED")).toBe(false);
+  });
+
+  it("취소된 견적에는 입금 계좌를 안내하지 않는다", () => {
+    expect(acceptsPayment("CANCELED")).toBe(false);
   });
 });

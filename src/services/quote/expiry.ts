@@ -21,3 +21,11 @@ export function displayStatus(
   if (stored === "CONFIRMED" || stored === "CANCELED") return stored;
   return expiresAt.getTime() <= now.getTime() ? "EXPIRED" : stored;
 }
+
+/**
+ * 입금을 안내해도 되는 견적인가. `displayStatus` 의 결과를 받는다. (ADR-0019)
+ * 금액이 유효하지 않은 견적에 계좌를 띄우면 잘못된 입금이 들어오고, 환불이 뒤따른다.
+ */
+export function acceptsPayment(displayed: QuoteStatus): boolean {
+  return displayed !== "EXPIRED" && displayed !== "CANCELED";
+}
