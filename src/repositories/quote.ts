@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { Prisma, QuoteStatus } from "@prisma/client";
+import type { Prisma, PaymentMethod, QuoteStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { AppliedOption } from "@/services/pricing/types";
 import type {
@@ -42,6 +42,7 @@ export interface QuoteRow {
   calculatedAt: Date;
   expiresAt: Date;
   items: SavedQuoteItem[];
+  paymentMethod: PaymentMethod | null;
 }
 
 /**
@@ -137,6 +138,7 @@ export async function findQuoteByPublicId(
       snapshot: true,
       calculatedAt: true,
       expiresAt: true,
+      paymentMethod: true,
       items: {
         select: {
           productId: true,
@@ -160,6 +162,7 @@ export async function findQuoteByPublicId(
     snapshot: quote.snapshot as unknown as QuoteSnapshot,
     calculatedAt: quote.calculatedAt,
     expiresAt: quote.expiresAt,
+    paymentMethod: quote.paymentMethod,
     items: quote.items.map((item) => ({
       productId: item.productId,
       productName: item.product.name,
@@ -268,6 +271,7 @@ export interface QuoteDetailRow extends QuoteRow {
   /** 연락처를 비운 시각. 빈 연락처가 파기 때문인지 구분한다. (ADR-0022) */
   purgedAt: Date | null;
   createdAt: Date;
+  paymentMethod: PaymentMethod | null;
 }
 
 /** 상세 조회. 개인정보를 꺼내므로 호출하는 쪽에서 열람 로그를 남긴다. */
@@ -306,6 +310,7 @@ export async function findQuoteDetail(
     calculatedAt: quote.calculatedAt,
     expiresAt: quote.expiresAt,
     createdAt: quote.createdAt,
+    paymentMethod: quote.paymentMethod,
     items: quote.items.map((item) => ({
       productId: item.productId,
       productName: item.product.name,
@@ -400,5 +405,44 @@ export async function logQuoteView(
       targetType: "Quote",
       targetId: publicId,
     },
+  });
+}
+
+/**
+ * 결제 방식 선택과 감사 기록을 같은 트랜잭션에서 수행한다. (`.claude/rules/admin.md`)
+ * REQUESTED 상태에만 결제 방식을 선택할 수 있다.
+ */
+export async function updateQuotePaymentMethod(
+  publicId: string,
+  paymentMethod: PaymentMethod,
+  actor: string,
+  summary: string,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.quote.findUnique({
+      where: { publicId },
+      select: { paymentMethod: true },
+    });
+
+    const changed = await tx.quote.updateMany({
+      where: { publicId, status: "REQUESTED" },
+      data: { paymentMethod },
+    });
+
+    if (changed.count === 0) return false;
+
+    await tx.auditLog.create({
+      data: {
+        action: "PAYMENT_METHOD_SELECTED",
+        actor,
+        summary,
+        targetType: "Quote",
+        targetId: publicId,
+        beforeValue: { paymentMethod: before?.paymentMethod ?? null },
+        afterValue: { paymentMethod },
+      },
+    });
+
+    return true;
   });
 }

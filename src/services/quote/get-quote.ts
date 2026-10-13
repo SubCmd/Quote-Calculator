@@ -16,6 +16,7 @@ export async function getQuote(
   return {
     publicId: quote.publicId,
     status: displayStatus(quote.status, quote.expiresAt, now),
+    storedStatus: quote.status,
     items: quote.items,
     subtotal: quote.subtotal,
     discountAmount: quote.discountAmount,
@@ -23,5 +24,6 @@ export async function getQuote(
     totalAmount: quote.totalAmount,
     calculatedAt: quote.calculatedAt,
     expiresAt: quote.expiresAt,
+    paymentMethod: quote.paymentMethod,
   };
 }

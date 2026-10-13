@@ -1,10 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import logo from "../../../public/logo.png";
 import { formatKRW } from "@/lib/money";
 import { supplierAccount } from "@/lib/supplier";
 import { splitTax } from "@/services/pricing/tax";
 import { acceptsPayment } from "@/services/quote/expiry";
 import { getQuote } from "@/services/quote/get-quote";
+import { paymentMethodLabel } from "@/lib/payment-method";
+import { MethodNotice } from "./method-notice";
+import { PaymentMethodForm } from "./payment-method-form";
 
 export const dynamic = "force-dynamic";
 
@@ -42,13 +47,20 @@ export default async function SavedQuotePage({
   const expired = quote.status === "EXPIRED";
   // 입금받을 수 없는 견적에는 계좌를 띄우지 않는다. (ADR-0019)
   const account = acceptsPayment(quote.status) ? supplierAccount() : null;
+  // 고를 수 있는지는 서버가 판단한다. 못 고르는 견적에는 선택 칸을 아예 그리지 않는다. (ADR-0033)
+  const canChooseMethod = quote.storedStatus === "REQUESTED";
 
   return (
     <>
       <header className="app-header">
         <div className="app-header-inner">
-          <p className="brand">입시 컨설팅</p>
-          <h1>견적서</h1>
+          <div className="app-identity">
+            <Image className="app-logo" src={logo} alt="컨쇼 로고" height={52} />
+            <div>
+              <p className="brand">컨쇼 Conshow 입시컨설팅</p>
+              <h1>견적서</h1>
+            </div>
+          </div>
           <p className="subtitle">
             {formatDateTime(quote.calculatedAt)} 기준 금액입니다. 표시 금액은
             모두 부가세 포함입니다.
@@ -132,6 +144,28 @@ export default async function SavedQuotePage({
                   <dd className="account-no">{account.accountNo}</dd>
                 </div>
               </dl>
+            </section>
+          )}
+
+          {canChooseMethod && (
+            <section className="payment-section" aria-labelledby="payment-title">
+              <h2 id="payment-title">결제 방식</h2>
+              <p className="hint">
+                어떻게 진행할지 골라 주세요. 고른 뒤에도 바꿀 수 있습니다.
+                {quote.paymentMethod && (
+                  <strong>
+                    {" "}
+                    현재 선택: {paymentMethodLabel(quote.paymentMethod)}
+                  </strong>
+                )}
+              </p>
+              <PaymentMethodForm
+                publicId={quote.publicId}
+                selectedMethod={quote.paymentMethod}
+              />
+              {quote.paymentMethod && (
+                <MethodNotice method={quote.paymentMethod} />
+              )}
             </section>
           )}
 

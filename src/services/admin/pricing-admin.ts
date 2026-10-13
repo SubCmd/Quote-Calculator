@@ -3,18 +3,32 @@ import {
   addDiscountVersion,
   addOptionVersion,
   createOption as createOptionRow,
+  deactivateDiscount as deactivateDiscountRow,
   deactivateOption as deactivateOptionRow,
   findAuditLog,
   findPricingAdminView,
   reactivateOption as reactivateOptionRow,
+  saveGroupDescription as saveGroupDescriptionRow,
+  saveOptionDescription as saveOptionDescriptionRow,
   type AdminProductView,
   type AuditEntry,
   type CreateOptionInput,
+  type DeactivateDiscountInput,
   type DeactivateOptionInput,
   type DeactivateOptionResult,
+  type DescriptionInput,
+  type OptionDescriptionInput,
   type ReactivateOptionInput,
   type ReactivateOptionResult,
 } from "@/repositories/pricing-admin";
+import {
+  reorderGroups as reorderGroupsRow,
+  reorderOptions as reorderOptionsRow,
+  reorderProducts as reorderProductsRow,
+  type ReorderGroupsInput,
+  type ReorderOptionsInput,
+  type ReorderResult,
+} from "@/repositories/pricing-order";
 import { calculate } from "@/services/pricing/calculate";
 import type { CalculationResult, RuleSet } from "@/services/pricing/types";
 
@@ -177,6 +191,44 @@ export async function reactivateOption(
   return reactivateOptionRow(input, actor);
 }
 
+/**
+ * 할인 비활성화. 옵션 비활성화와 달리 **조건 옵션은 건드리지 않는다.** (ADR-0026)
+ * 할인이 없어도 옵션은 혼자 팔리므로, 할인을 끌 때 옵션까지 끄면 상담 항목이 사라진다.
+ */
+export async function deactivateDiscount(
+  input: DeactivateDiscountInput,
+  actor: string,
+): Promise<{ discountName: string }> {
+  return deactivateDiscountRow(input, actor);
+}
+
+export type { ReorderResult };
+
+/**
+ * 표시 순서 변경. 세 층 모두 **전체 순열**을 받는다. (ADR-0026)
+ * 금액이 아니라 화면 배치라서 미리보기도, 적용 시작 시각도 없다. 지난 견적은 영향받지 않는다.
+ */
+export async function reorderProducts(
+  productCodes: string[],
+  actor: string,
+): Promise<ReorderResult> {
+  return reorderProductsRow(productCodes, actor);
+}
+
+export async function reorderGroups(
+  input: ReorderGroupsInput,
+  actor: string,
+): Promise<ReorderResult> {
+  return reorderGroupsRow(input, actor);
+}
+
+export async function reorderOptions(
+  input: ReorderOptionsInput,
+  actor: string,
+): Promise<ReorderResult> {
+  return reorderOptionsRow(input, actor);
+}
+
 export async function saveDiscountVersion(
   input: SaveDiscountVersion,
   actor: string,
@@ -186,4 +238,22 @@ export async function saveDiscountVersion(
     { ...input, effectiveFrom: input.effectiveFrom ?? now },
     actor,
   );
+}
+
+/**
+ * 설명 문구 수정. 금액을 바꾸지 않으므로 미리보기도, 적용 시작 시각도 없다. (ADR-0025)
+ * `now` 를 받지 않는 것이 이 작업과 가격 버전 작업의 차이다.
+ */
+export async function saveGroupDescription(
+  input: DescriptionInput,
+  actor: string,
+): Promise<void> {
+  await saveGroupDescriptionRow(input, actor);
+}
+
+export async function saveOptionDescription(
+  input: OptionDescriptionInput,
+  actor: string,
+): Promise<void> {
+  await saveOptionDescriptionRow(input, actor);
 }

@@ -1,12 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { latestPerKey } from "./latest-version";
 
-export interface CatalogOption {
+/** 설명 문구. 없는 것이 정상이다. (ADR-0025) */
+export interface Description {
+  /** 이름 아래 항상 보이는 한 줄 */
+  summary: string | null;
+  /** 펼쳐서 읽는 긴 안내 */
+  detail: string | null;
+}
+
+export interface CatalogOption extends Description {
   id: string;
   name: string;
 }
 
-export interface CatalogGroup {
+export interface CatalogGroup extends Description {
   id: string;
   name: string;
   required: boolean;
@@ -37,6 +45,10 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
             orderBy: { effectiveFrom: "desc" },
             select: { id: true, name: true, code: true, sortOrder: true },
           },
+          // 설명은 금액 테이블과 분리돼 있다. 옵션 코드로 맞춰 붙인다. (ADR-0025)
+          optionDescriptions: {
+            select: { optionCode: true, summary: true, detail: true },
+          },
         },
       },
     },
@@ -45,15 +57,27 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
   return products.map((p) => ({
     id: p.id,
     name: p.name,
-    groups: p.optionGroups.map((g) => ({
-      id: g.id,
-      name: g.name,
-      required: g.required,
-      singleSelect: g.singleSelect,
-      dependsOnGroupId: g.dependsOnGroupId,
-      options: latestPerKey(g.options, (o) => o.code)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((o) => ({ id: o.id, name: o.name })),
-    })),
+    groups: p.optionGroups.map((g) => {
+      const descriptionByCode = new Map(
+        g.optionDescriptions.map((d) => [d.optionCode, d]),
+      );
+      return {
+        id: g.id,
+        name: g.name,
+        required: g.required,
+        singleSelect: g.singleSelect,
+        dependsOnGroupId: g.dependsOnGroupId,
+        summary: g.summary,
+        detail: g.detail,
+        options: latestPerKey(g.options, (o) => o.code)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            summary: descriptionByCode.get(o.code)?.summary ?? null,
+            detail: descriptionByCode.get(o.code)?.detail ?? null,
+          })),
+      };
+    }),
   }));
 }

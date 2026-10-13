@@ -5,7 +5,7 @@ import type { DiscountRule } from "./types";
 /** 조건 옵션 2개를 모두 선택해야 걸리는 묶음 할인 (ADR-0009) */
 const bundleDiscount: DiscountRule = {
   id: "disc-bundle",
-  name: "통합 할인 15%",
+  name: "묶음 할인 15%",
   type: "RATE",
   amount: 0,
   rateBp: 1500,

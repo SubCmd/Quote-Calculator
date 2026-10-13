@@ -42,6 +42,19 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
 - 옵션 그룹은 버전 테이블이 아니다(`effectiveFrom` 없음). 그룹 간 선행 관계(`dependsOnGroupId`)는
   행 id로 가리키고 외래 키를 건다. 버전이 바뀌지 않으므로 코드로 우회할 이유가 없다. (ADR-0010)
 
+## 설명 문구 테이블 (ADR-0025)
+
+- 설명은 **가격 규칙 테이블이 아니다.** 위 절의 "수정은 새 행 `INSERT`" 가 적용되지 않는다.
+  `OptionGroup.summary`/`detail` 은 `UPDATE`, `OptionDescription` 은 `upsert` 로 고친다.
+- 옵션 설명을 `ProductOption` 컬럼으로 넣지 않는다. 그 테이블은 금액 버전 테이블이라
+  문구 오타를 고칠 때마다 가격 버전 행이 쌓이고, 금액 이력을 읽을 수 없게 된다.
+- `OptionDescription` 은 옵션을 `(groupId, optionCode)` 로 가리킨다. 옵션 행 id 는 버전마다
+  바뀌므로 쓸 수 없고(ADR-0009와 같은 이유), `OptionGroup` 은 버전 테이블이 아니라서
+  행 id 가 안정적이다(ADR-0010). 그래서 `groupId` 에는 외래 키를 건다.
+- 설명에 `effectiveFrom` 을 두지 않는다. 설명은 과거 견적의 근거가 아니라 현재 안내문이다.
+  변경 기록은 `AuditLog` 의 `DESCRIPTION_UPDATED` 가 담당한다.
+- 옵션을 비활성화할 때 설명 행을 지우지 않는다. 재활성화하면 문구가 그대로 돌아와야 한다.
+
 ## 견적 테이블
 
 - 계산 결과 금액 분해값을 모두 컬럼으로 저장한다. 총액만 저장하지 않는다.

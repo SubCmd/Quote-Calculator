@@ -1,4 +1,4 @@
-import type { QuoteStatus } from "@prisma/client";
+import type { PaymentMethod, QuoteStatus } from "@prisma/client";
 import { formatPhone, maskName, maskPhone } from "@/lib/masking";
 import {
   findQuoteDetail,
@@ -99,6 +99,8 @@ export interface AdminQuoteDetail {
   clonedFromPublicId: string | null;
   /** 이 견적에서 지금 누를 수 있는 다음 상태 */
   nextStatuses: { value: QuoteStatus; label: string }[];
+  /** 선택한 결제 방식. null이면 아직 선택되지 않음 */
+  paymentMethod: PaymentMethod | null;
 }
 
 /**
@@ -137,6 +139,7 @@ export async function getQuoteDetail(
       value,
       label: statusLabel(value),
     })),
+    paymentMethod: quote.paymentMethod,
   };
 }
 
@@ -188,3 +191,4 @@ export async function changeQuoteStatus(
 
   return { ok: true, status: to };
 }
+

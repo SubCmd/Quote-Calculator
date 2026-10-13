@@ -3,9 +3,11 @@ import { notFound, redirect } from "next/navigation";
 import { isAdmin, isAdminConfigured } from "@/lib/auth";
 import { formatKRW } from "@/lib/money";
 import { getQuoteDetail } from "@/services/quote/admin-quotes";
+import { paymentMethodLabel } from "@/lib/payment-method";
 import { statusLabel } from "@/services/quote/transition";
 import { CloneForm } from "./clone-form";
 import { StatusForm } from "./status-form";
+import { PaymentMethodForm } from "./payment-method-form";
 
 export const dynamic = "force-dynamic";
 
@@ -154,6 +156,24 @@ export default async function AdminQuoteDetailPage({
             publicId={quote.publicId}
             currentLabel={statusLabel(quote.storedStatus)}
             nextStatuses={quote.nextStatuses}
+          />
+        </div>
+
+        <div className="card">
+          <h2>결제 방식</h2>
+          <p className="hint">
+            고객이 직접 고를 수도 있습니다. 어느 쪽이 골라도 기록이 남습니다.
+            {quote.paymentMethod && (
+              <strong>
+                {" "}
+                현재 선택: {paymentMethodLabel(quote.paymentMethod)}
+              </strong>
+            )}
+          </p>
+          <PaymentMethodForm
+            publicId={quote.publicId}
+            selectedMethod={quote.paymentMethod}
+            isDisabled={quote.storedStatus !== "REQUESTED"}
           />
         </div>
 

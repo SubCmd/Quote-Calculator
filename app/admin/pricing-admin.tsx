@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatKRW } from "@/lib/money";
+import { resolveOrderInput } from "@/lib/order-input";
 import type { AdminProductView } from "@/services/admin/pricing-admin";
 
 type Product = AdminProductView;
@@ -509,6 +510,153 @@ function InactiveOptionEditor({
   );
 }
 
+/**
+ * 설명 편집 대상. 단계와 옵션은 저장 동작이 같고 가리키는 대상만 다르다. (ADR-0025)
+ * `optionCode` 가 있으면 옵션, 없으면 단계다.
+ */
+interface DescriptionTarget {
+  kind: "group-description" | "option-description";
+  /** 입력 id 와 React key */
+  id: string;
+  name: string;
+  context: string;
+  groupCode: string;
+  optionCode?: string;
+  summary: string | null;
+  detail: string | null;
+}
+
+/** 단계 바로 아래에 그 단계의 옵션을 늘어놓는다. 화면에 보이는 순서와 같게 한다. */
+function descriptionTargets(product: Product): DescriptionTarget[] {
+  return product.groups.flatMap((group) => [
+    {
+      kind: "group-description" as const,
+      id: `g-${group.code}`,
+      name: group.name,
+      context: "단계",
+      groupCode: group.code,
+      summary: group.summary,
+      detail: group.detail,
+    },
+    ...product.options
+      .filter((option) => option.groupCode === group.code)
+      .map((option) => ({
+        kind: "option-description" as const,
+        id: `o-${group.code}-${option.code}`,
+        name: option.name,
+        context: `${group.name} 옵션`,
+        groupCode: group.code,
+        optionCode: option.code,
+        summary: option.summary,
+        detail: option.detail,
+      })),
+  ]);
+}
+
+/**
+ * 설명 문구 편집. 금액을 바꾸지 않으므로 미리보기도, 적용 시작 시각도 없다. (ADR-0025)
+ * 새 버전을 만들지 않고 덮어쓴다. 비우고 저장하면 설명이 사라지는 것이 정상 동작이다.
+ */
+function DescriptionEditor({
+  product,
+  target,
+}: {
+  product: Product;
+  target: DescriptionTarget;
+}) {
+  const router = useRouter();
+  const [summary, setSummary] = useState(target.summary ?? "");
+  const [detail, setDetail] = useState(target.detail ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const nextSummary = summary.trim();
+  const nextDetail = detail.trim();
+  const dirty =
+    nextSummary !== (target.summary ?? "") || nextDetail !== (target.detail ?? "");
+  // 지우는 것도 정상 저장이지만 되돌릴 수 없으므로 확인을 받는다.
+  const clearing =
+    (target.summary !== null && nextSummary === "") ||
+    (target.detail !== null && nextDetail === "");
+
+  async function save() {
+    if (
+      clearing &&
+      !window.confirm(
+        `'${target.name}' 의 설명을 지웁니다.\n\n고객 화면에서 이 안내가 사라집니다. 지운 문구는 되돌릴 수 없습니다.\n\n계속할까요?`,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson("/api/admin/pricing", {
+        kind: target.kind,
+        productId: product.id,
+        groupCode: target.groupCode,
+        optionCode: target.optionCode,
+        summary: nextSummary || undefined,
+        detail: nextDetail || undefined,
+      });
+      setSaved(true);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <tr>
+      <td>
+        <span className="row-name">{target.name}</span>
+        <span className="row-meta">{target.context}</span>
+      </td>
+      <td>
+        <label htmlFor={`summary-${target.id}`} className="field-label">
+          한 줄 설명
+        </label>
+        <input
+          id={`summary-${target.id}`}
+          type="text"
+          maxLength={120}
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+          placeholder="이름 아래 항상 보이는 한 줄"
+          className="text-input wide"
+        />
+        <label htmlFor={`detail-${target.id}`} className="field-label">
+          자세한 설명
+        </label>
+        <textarea
+          id={`detail-${target.id}`}
+          maxLength={2000}
+          rows={3}
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          placeholder="'자세히' 를 눌러 펼치는 긴 안내. 비우면 '자세히' 가 나오지 않습니다."
+          className="text-input detail-input"
+        />
+      </td>
+      <td className="actions">
+        <button
+          type="button"
+          className="primary"
+          onClick={save}
+          disabled={!dirty || busy}
+        >
+          설명 저장
+        </button>
+        {saved && !dirty && <p className="preview">저장했습니다.</p>}
+        {error && <p className="form-error">{error}</p>}
+      </td>
+    </tr>
+  );
+}
+
 function DiscountEditor({
   product,
   discount,
@@ -563,6 +711,45 @@ function DiscountEditor({
         change,
       });
       setPreview(result);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  /**
+   * 할인만 끈다. 조건 옵션은 그대로 남는다. 옵션 비활성화와 방향이 다르다. (ADR-0026)
+   * 조건으로 쓰인 옵션 이름을 확인 문구에 적어, 그 옵션이 사라지는 것으로 오해하지 않게 한다.
+   */
+  async function deactivate() {
+    const conditionNames = discount.conditions
+      .map(
+        (c) =>
+          product.options.find(
+            (o) => o.groupCode === c.groupCode && o.code === c.optionCode,
+          )?.name ?? c.optionCode,
+      )
+      .join(", ");
+    const note =
+      discount.conditions.length === 0
+        ? ""
+        : `\n조건 옵션(${conditionNames})은 그대로 남아 계속 고를 수 있습니다.`;
+    if (
+      !window.confirm(
+        `${discount.name} 을 비활성화합니다.\n이 할인은 더 이상 계산에 들어가지 않습니다.${note}\n\n계속할까요?`,
+      )
+    )
+      return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson("/api/admin/pricing", {
+        kind: "deactivate-discount",
+        productId: product.id,
+        discountCode: discount.code,
+      });
+      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -666,11 +853,160 @@ function DiscountEditor({
         >
           새 버전 저장
         </button>
+        <button
+          type="button"
+          className="ghost danger"
+          onClick={deactivate}
+          disabled={busy}
+        >
+          비활성화
+        </button>
         {preview && <PreviewLine preview={preview} />}
         {error && <p className="form-error">{error}</p>}
       </td>
     </tr>
   );
+}
+
+interface OrderItem {
+  key: string;
+  label: string;
+  /** 꺼진 옵션처럼 그 줄에 붙는 상태 표시 */
+  note?: string;
+}
+
+/**
+ * 순서 바꾸기 한 묶음. 각 줄에 **보일 자리 번호**를 적는다. (ADR-0032)
+ * 저장할 때 보내는 것은 번호가 아니라 **전체 순열**이다. (ADR-0026)
+ *
+ * 줄은 번호를 고쳐도 제자리에 있고, 결과는 아래 미리보기가 보여준다.
+ * 입력하는 칸이 커서 아래에서 움직이면 어느 줄을 고치던 중인지 놓친다.
+ *
+ * 입력값을 키로 들고 있어서 저장 뒤 서버 순서가 바뀌어도 줄마다 제 번호가 따라온다.
+ * 다시 마운트하지 않아도 `되돌리기` 와 변경 여부가 새 순서를 기준으로 맞는다.
+ */
+function OrderList({
+  items,
+  onSave,
+}: {
+  items: OrderItem[];
+  onSave: (keys: string[]) => Promise<void>;
+}) {
+  const router = useRouter();
+  const initial = items.map((item) => item.key);
+  const [positions, setPositions] = useState<Record<string, string>>(() =>
+    Object.fromEntries(items.map((item, index) => [item.key, `${index + 1}`])),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const labelByKey = new Map(items.map((item) => [item.key, item]));
+  const { keys, error: inputError } = resolveOrderInput(
+    items.map((item) => ({ key: item.key, value: positions[item.key] ?? "" })),
+  );
+  const changed = keys !== null && keys.some((key, i) => initial[i] !== key);
+
+  function reset() {
+    setPositions(
+      Object.fromEntries(items.map((item, index) => [item.key, `${index + 1}`])),
+    );
+    setError(null);
+  }
+
+  async function save() {
+    if (!keys) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(keys);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  if (items.length < 2)
+    return <p className="empty-note">순서를 바꿀 항목이 2개 미만입니다.</p>;
+
+  return (
+    <>
+      <ul className="order-list">
+        {items.map((item) => (
+          <li key={item.key}>
+            <input
+              id={`order-${item.key}`}
+              className="order-number"
+              type="number"
+              min={1}
+              max={items.length}
+              step={1}
+              inputMode="numeric"
+              value={positions[item.key] ?? ""}
+              onChange={(e) =>
+                setPositions((prev) => ({
+                  ...prev,
+                  [item.key]: e.target.value,
+                }))
+              }
+              disabled={busy}
+              aria-label={`${item.label} 순서 번호`}
+            />
+            <label className="order-label" htmlFor={`order-${item.key}`}>
+              {item.label}
+              {item.note && <span className="row-meta">{item.note}</span>}
+            </label>
+          </li>
+        ))}
+      </ul>
+      {inputError && <p className="form-error">{inputError}</p>}
+      {keys && changed && (
+        <ol className="order-preview">
+          {keys.map((key) => (
+            <li key={key}>{labelByKey.get(key)!.label}</li>
+          ))}
+        </ol>
+      )}
+      <div className="order-actions">
+        <button
+          type="button"
+          className="ghost"
+          onClick={reset}
+          disabled={busy}
+        >
+          되돌리기
+        </button>
+        <button
+          type="button"
+          className="primary"
+          onClick={save}
+          disabled={!changed || busy}
+        >
+          순서 저장
+        </button>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+    </>
+  );
+}
+
+/**
+ * 한 그룹 안의 옵션 순서. **꺼진 옵션도 함께 넣는다.** (ADR-0026)
+ * 빼면 되살린 옵션이 제 자리로 돌아오지 못한다.
+ */
+function optionOrderItems(product: Product, groupCode: string): OrderItem[] {
+  const active = product.options
+    .filter((o) => o.groupCode === groupCode)
+    .map((o) => ({ key: o.code, label: o.name, sortOrder: o.sortOrder }));
+  const inactive = product.inactiveOptions
+    .filter((o) => o.groupCode === groupCode)
+    .map((o) => ({
+      key: o.code,
+      label: o.name,
+      note: "꺼짐",
+      sortOrder: o.sortOrder,
+    }));
+  return [...active, ...inactive].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function PricingAdmin({ products }: { products: Product[] }) {
@@ -728,6 +1064,45 @@ export function PricingAdmin({ products }: { products: Product[] }) {
         </section>
 
         <section className="card">
+          <h2>표시 순서</h2>
+          <p className="hint">
+            고객 화면에 보이는 순서입니다. 금액이 아니라 화면 배치라서 버전을
+            남기지 않고 덮어씁니다. 이미 발행된 견적에는 영향이 없습니다.
+          </p>
+
+          <h3>단계</h3>
+          <OrderList
+            key={`groups-${product.id}`}
+            items={product.groups.map((g) => ({ key: g.code, label: g.name }))}
+            onSave={(groupCodes) =>
+              postJson("/api/admin/pricing", {
+                kind: "reorder-groups",
+                productId: product.id,
+                groupCodes,
+              })
+            }
+          />
+
+          {product.groups.map((group) => (
+            <div key={group.code}>
+              <h3>{group.name} 옵션</h3>
+              <OrderList
+                key={`options-${product.id}-${group.code}`}
+                items={optionOrderItems(product, group.code)}
+                onSave={(optionCodes) =>
+                  postJson("/api/admin/pricing", {
+                    kind: "reorder-options",
+                    productId: product.id,
+                    groupCode: group.code,
+                    optionCodes,
+                  })
+                }
+              />
+            </div>
+          ))}
+        </section>
+
+        <section className="card">
           <h2>옵션 추가</h2>
           <NewOptionForm product={product} />
         </section>
@@ -758,6 +1133,34 @@ export function PricingAdmin({ products }: { products: Product[] }) {
         )}
 
         <section className="card">
+          <h2>설명 문구</h2>
+          <p className="hint">
+            한 줄 설명은 이름 아래 항상 보입니다. 자세한 설명은 고객이
+            &lsquo;자세히&rsquo;를 눌러 펼칩니다. 금액과 달리 버전을 남기지 않고
+            덮어씁니다. 적용 시작 시각이 없어 저장하는 즉시 바뀝니다. 평문으로만
+            보이므로 HTML 태그를 쓰지 마세요.
+          </p>
+          <table className="rules">
+            <thead>
+              <tr>
+                <th>대상</th>
+                <th>설명</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {descriptionTargets(product).map((target) => (
+                <DescriptionEditor
+                  key={target.id}
+                  product={product}
+                  target={target}
+                />
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="card">
           <h2>할인 규칙</h2>
           {product.discounts.length === 0 ? (
             <p className="empty-note">이 상품에는 할인 규칙이 없습니다.</p>
@@ -785,6 +1188,24 @@ export function PricingAdmin({ products }: { products: Product[] }) {
           )}
         </section>
       </div>
+
+      {/* 탭 순서는 상품 하나에 딸린 설정이 아니라 목록 전체의 설정이라 탭 바깥에 둔다. */}
+      <section className="card">
+        <h2>상품 탭 순서</h2>
+        <p className="hint">
+          고객 화면 맨 위 탭이 보이는 순서입니다. 관리자 화면 탭도 같이
+          바뀝니다.
+        </p>
+        <OrderList
+          items={products.map((p) => ({ key: p.code, label: p.name }))}
+          onSave={(productCodes) =>
+            postJson("/api/admin/pricing", {
+              kind: "reorder-products",
+              productCodes,
+            })
+          }
+        />
+      </section>
     </>
   );
 }

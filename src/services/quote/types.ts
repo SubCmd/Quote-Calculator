@@ -1,4 +1,4 @@
-import type { QuoteStatus } from "@prisma/client";
+import type { QuoteStatus, PaymentMethod } from "@prisma/client";
 import type { AppliedOption, DiscountCandidate } from "../pricing/types";
 
 /** 저장 시 받는 고객 정보. 학생 정보는 받지 않는다. (ADR-0013) */
@@ -41,6 +41,8 @@ export interface SavedQuote {
   publicId: string;
   /** 저장된 상태가 아니라 만료까지 반영한 표시 상태다. (ADR-0012) */
   status: QuoteStatus;
+  /** 저장된 실제 상태 (만료 판정 전). 결제 방식 선택 가능 여부 판정용 */
+  storedStatus: QuoteStatus;
   items: SavedQuoteItem[];
   subtotal: number;
   discountAmount: number;
@@ -48,4 +50,6 @@ export interface SavedQuote {
   totalAmount: number;
   calculatedAt: Date;
   expiresAt: Date;
+  /** 선택된 결제 방식. null이면 선택되지 않음 */
+  paymentMethod: PaymentMethod | null;
 }

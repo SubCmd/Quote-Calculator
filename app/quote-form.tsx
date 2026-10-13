@@ -12,6 +12,34 @@ type CatalogGroup = CatalogProduct["groups"][number];
 
 const DEBOUNCE_MS = 300;
 
+/**
+ * 설명 문구. 한 줄은 항상 보이고 긴 설명만 접는다. (ADR-0025)
+ * 호버 툴팁을 쓰지 않는 이유는 터치 기기에 hover 상태가 없어서다.
+ * `<details>` 는 스크립트 없이 열리고 키보드로 접근된다. 열림 상태를 컴포넌트에 두지 않는다.
+ *
+ * 관리자가 입력한 평문이다. HTML 로 해석하지 않고 줄바꿈만 CSS 로 살린다.
+ */
+function Description({
+  summary,
+  detail,
+}: {
+  summary: string | null;
+  detail: string | null;
+}) {
+  if (!summary && !detail) return null;
+  return (
+    <>
+      {summary && <p className="description">{summary}</p>}
+      {detail && (
+        <details className="description-detail">
+          <summary>자세히</summary>
+          <p>{detail}</p>
+        </details>
+      )}
+    </>
+  );
+}
+
 function hasSelection(group: CatalogGroup, optionIds: string[]): boolean {
   return group.options.some((o) => optionIds.includes(o.id));
 }
@@ -235,17 +263,6 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
     });
   }
 
-  // 전체 선택은 그룹 옵션을 한 번에 켜는 보조 입력이다. 자체 상태를 두지 않는다.
-  // 할인이 걸리는지는 서버 응답으로만 안다.
-  function toggleAll(group: CatalogGroup, nextChecked: boolean) {
-    setOptionIds((prev) => {
-      const groupOptionIds = group.options.map((o) => o.id);
-      const others = prev.filter((id) => !groupOptionIds.includes(id));
-      const next = nextChecked ? [...others, ...groupOptionIds] : others;
-      return pruneUnmetGroups(product.groups, next);
-    });
-  }
-
   useEffect(() => {
     const controller = new AbortController();
     const requestId = latestRequest.current + 1;
@@ -336,9 +353,6 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
         >
           {product.groups.map((group, index) => {
             const violation = groupViolation(group.id);
-            const allSelected =
-              group.options.length > 0 &&
-              group.options.every((o) => optionIds.includes(o.id));
             const prerequisite = product.groups.find(
               (g) => g.id === group.dependsOnGroupId,
             );
@@ -358,6 +372,7 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                   {group.name}
                   {group.required && <span className="required-mark">*</span>}
                 </legend>
+                <Description summary={group.summary} detail={group.detail} />
                 {locked && (
                   <p className="lock-hint">
                     <span aria-hidden="true">🔒</span>
@@ -365,30 +380,28 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                   </p>
                 )}
                 {group.options.map((option) => (
-                  <div className="option-row" key={option.id}>
-                    <input
-                      type={group.singleSelect ? "radio" : "checkbox"}
-                      id={`option-${option.id}`}
-                      name={`group-${group.id}`}
-                      checked={optionIds.includes(option.id)}
-                      readOnly
-                      onClick={() => toggleOption(group, option.id)}
+                  // 설명은 label 바깥에 둔다. 라벨 안에 있으면 설명을 읽으려 누른 동작이
+                  // 선택을 토글한다. (ADR-0025)
+                  <div className="option-item" key={option.id}>
+                    <div className="option-row">
+                      <input
+                        type={group.singleSelect ? "radio" : "checkbox"}
+                        id={`option-${option.id}`}
+                        name={`group-${group.id}`}
+                        checked={optionIds.includes(option.id)}
+                        readOnly
+                        onClick={() => toggleOption(group, option.id)}
+                      />
+                      <label htmlFor={`option-${option.id}`}>
+                        {option.name}
+                      </label>
+                    </div>
+                    <Description
+                      summary={option.summary}
+                      detail={option.detail}
                     />
-                    <label htmlFor={`option-${option.id}`}>{option.name}</label>
                   </div>
                 ))}
-                {!group.singleSelect && group.options.length > 1 && (
-                  <div className="option-row select-all">
-                    <input
-                      type="checkbox"
-                      id={`all-${group.id}`}
-                      checked={allSelected}
-                      readOnly
-                      onClick={() => toggleAll(group, !allSelected)}
-                    />
-                    <label htmlFor={`all-${group.id}`}>전체 선택</label>
-                  </div>
-                )}
                 {violation && (
                   <p className="group-error">{violation.message}</p>
                 )}
@@ -446,7 +459,7 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                       </tr>
                     ))}
                     <tr className="subtotal">
-                      <td className="label">소계 (10원 단위 버림)</td>
+                      <td className="label">소계</td>
                       <td>{formatKRW(result.subtotal)}</td>
                     </tr>
                     {result.appliedDiscount && (

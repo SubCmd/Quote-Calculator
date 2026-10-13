@@ -15,3 +15,6 @@ backup/
 
 .DS_Store
 *.log
+
+# 개발 서버 전용 빌드 디렉터리 (프로덕션 .next 와 분리)
+.next-dev/

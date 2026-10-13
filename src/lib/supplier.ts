@@ -27,6 +27,14 @@ export function supplierFields(): SupplierField[] {
   });
 }
 
+/**
+ * 상담 안내에 띄우는 연락처. 없으면 `null` 이고 화면은 연락처 줄을 빼고 그린다.
+ * 번호를 코드에 적지 않는다. 틀린 번호를 띄우는 것이 번호가 없는 것보다 나쁘다. (ADR-0016)
+ */
+export function supplierContact(): string | null {
+  return process.env.QUOTE_SUPPLIER_CONTACT?.trim() || null;
+}
+
 export interface SupplierAccount {
   bankName: string;
   holder: string;

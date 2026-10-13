@@ -13,12 +13,20 @@ export interface AdminOptionRow {
   amount: number;
   effectiveFrom: Date;
   versionCount: number;
+  /** 화면 표시 순서. 꺼진 옵션과 한 줄로 묶어 순서를 매기는 데 쓴다. (ADR-0026) */
+  sortOrder: number;
+  /** 설명 문구. 금액과 달리 버전을 남기지 않는다. (ADR-0025) */
+  summary: string | null;
+  detail: string | null;
 }
 
 /** 신규 옵션을 넣을 그룹 선택지. 그룹 자체는 이 화면에서 만들지 않는다. (ADR-0023) */
 export interface AdminGroupRow {
   code: string;
   name: string;
+  /** 단계 설명. 편집 대상이다. (ADR-0025) */
+  summary: string | null;
+  detail: string | null;
 }
 
 /** 꺼진 옵션. 되살릴 때 함께 켜지는/켜지지 않는 할인을 미리 달고 내려간다. (ADR-0023) */
@@ -30,6 +38,8 @@ export interface AdminInactiveOptionRow {
   name: string;
   amount: number;
   versionCount: number;
+  /** 꺼진 옵션도 순서 묶음에 들어간다. 빼면 되살렸을 때 제 자리로 돌아오지 못한다. (ADR-0026) */
+  sortOrder: number;
   reactivatableDiscounts: { code: string; name: string }[];
   blockedDiscounts: { code: string; name: string; missing: string[] }[];
 }
@@ -81,6 +91,9 @@ export async function findPricingAdminView(
             where: { effectiveFrom: { lte: now } },
             orderBy: { effectiveFrom: "desc" },
           },
+          optionDescriptions: {
+            select: { optionCode: true, summary: true, detail: true },
+          },
         },
       },
       discounts: {
@@ -128,6 +141,16 @@ export async function findPricingAdminView(
     );
     const inactiveDiscounts = latestDiscounts.filter((d) => !d.isActive);
 
+    // 설명은 `(groupId, optionCode)` 를 키로 따로 저장된다. (ADR-0025)
+    const descriptionByKey = new Map(
+      product.optionGroups.flatMap((group) =>
+        group.optionDescriptions.map((d) => [
+          optionKey(group.code, d.optionCode),
+          d,
+        ]),
+      ),
+    );
+
     return {
       id: product.id,
       code: product.code,
@@ -135,21 +158,28 @@ export async function findPricingAdminView(
       groups: product.optionGroups.map((group) => ({
         code: group.code,
         name: group.name,
+        summary: group.summary,
+        detail: group.detail,
       })),
       options: latestOptions
         .filter(({ option }) => option.isActive)
-        .map(({ group, option }) => ({
-          versionId: option.id,
-          groupId: group.id,
-          groupCode: group.code,
-          groupName: group.name,
-          code: option.code,
-          name: option.name,
-          amount: option.amount,
-          effectiveFrom: option.effectiveFrom,
-          versionCount:
-            countByOptionCode.get(optionKey(group.code, option.code)) ?? 1,
-        })),
+        .map(({ group, option }) => {
+          const key = optionKey(group.code, option.code);
+          return {
+            versionId: option.id,
+            groupId: group.id,
+            groupCode: group.code,
+            groupName: group.name,
+            code: option.code,
+            name: option.name,
+            amount: option.amount,
+            effectiveFrom: option.effectiveFrom,
+            versionCount: countByOptionCode.get(key) ?? 1,
+            sortOrder: option.sortOrder,
+            summary: descriptionByKey.get(key)?.summary ?? null,
+            detail: descriptionByKey.get(key)?.detail ?? null,
+          };
+        }),
       inactiveOptions: latestOptions
         .filter(({ option }) => !option.isActive)
         .map(({ group, option }) => {
@@ -171,6 +201,7 @@ export async function findPricingAdminView(
             name: option.name,
             amount: option.amount,
             versionCount: countByOptionCode.get(key) ?? 1,
+            sortOrder: option.sortOrder,
             reactivatableDiscounts: plan.revivable,
             blockedDiscounts: plan.blocked.map((blocked) => ({
               code: blocked.code,
@@ -457,6 +488,57 @@ export async function addDiscountVersion(
   ]);
 }
 
+export interface DeactivateDiscountInput {
+  productId: string;
+  discountCode: string;
+}
+
+/**
+ * 할인 비활성화. 같은 코드의 **모든 버전 행**을 끈다. (ADR-0002)
+ *
+ * 옵션 비활성화와 달리 **조건 옵션은 건드리지 않는다.** (ADR-0026)
+ * 방향이 한쪽으로만 흐른다. 할인은 조건 옵션이 꺼지면 해석되지 않아 함께 꺼져야 하지만(ADR-0017),
+ * 옵션은 할인이 없어도 혼자 팔린다. 할인을 끌 때 옵션까지 끄면 고를 수 있던 상담이 사라진다.
+ *
+ * 되살리는 길은 새 버전 추가가 아니라 재활성화다. 지우지 않는 이유는 지난 견적의 근거라서다.
+ */
+export async function deactivateDiscount(
+  input: DeactivateDiscountInput,
+  actor: string,
+): Promise<{ discountName: string }> {
+  const current = await prisma.discountRule.findFirst({
+    where: {
+      productId: input.productId,
+      code: input.discountCode,
+      isActive: true,
+    },
+    orderBy: { effectiveFrom: "desc" },
+    select: { name: true },
+  });
+  if (!current)
+    throw new Error(`할인 규칙을 찾을 수 없습니다: ${input.discountCode}`);
+
+  await prisma.$transaction([
+    prisma.discountRule.updateMany({
+      where: { productId: input.productId, code: input.discountCode },
+      data: { isActive: false },
+    }),
+    prisma.auditLog.create({
+      data: {
+        action: "DISCOUNT_DEACTIVATED",
+        actor,
+        summary: `${current.name} 비활성화 (조건 옵션은 그대로 둔다)`,
+        targetType: "DiscountRule",
+        targetId: input.discountCode,
+        beforeValue: { isActive: true },
+        afterValue: { isActive: false },
+      },
+    }),
+  ]);
+
+  return { discountName: current.name };
+}
+
 export interface DeactivateOptionInput {
   productId: string;
   groupCode: string;
@@ -677,6 +759,138 @@ export async function reactivateOption(
     reactivatedDiscounts: plan.revivable,
     blockedDiscounts,
   };
+}
+
+export interface DescriptionInput {
+  productId: string;
+  groupCode: string;
+  summary: string | null;
+  detail: string | null;
+}
+
+export interface OptionDescriptionInput extends DescriptionInput {
+  optionCode: string;
+}
+
+/** 저장할 값과 지금 값이 같은지. 같으면 쓰지 않는다. 같은 내용의 감사 기록을 쌓지 않는다. */
+function sameText(
+  before: { summary: string | null; detail: string | null },
+  after: { summary: string | null; detail: string | null },
+): boolean {
+  return before.summary === after.summary && before.detail === after.detail;
+}
+
+function describeChange(
+  label: string,
+  before: { summary: string | null; detail: string | null },
+  after: { summary: string | null; detail: string | null },
+): string {
+  const changed = [
+    before.summary !== after.summary ? "한 줄 설명" : null,
+    before.detail !== after.detail ? "자세한 설명" : null,
+  ].filter((part) => part !== null);
+  return `${label} ${changed.join("·")} 수정`;
+}
+
+/**
+ * 단계(그룹) 설명 수정. 새 버전이 아니라 덮어쓰기다. (ADR-0025)
+ * 설명은 과거 견적의 근거가 아니라 현재 안내문이라서 버전을 남기지 않는다.
+ * 그래도 누가 무엇을 바꿨는지는 남겨야 하므로 감사 기록은 같은 트랜잭션에서 쓴다.
+ */
+export async function saveGroupDescription(
+  input: DescriptionInput,
+  actor: string,
+): Promise<void> {
+  const group = await prisma.optionGroup.findFirst({
+    where: { productId: input.productId, code: input.groupCode, isActive: true },
+    select: { id: true, name: true, summary: true, detail: true },
+  });
+  if (!group)
+    throw new Error(`옵션 그룹을 찾을 수 없습니다: ${input.groupCode}`);
+
+  const after = { summary: input.summary, detail: input.detail };
+  if (sameText(group, after)) return;
+
+  await prisma.$transaction([
+    prisma.optionGroup.update({ where: { id: group.id }, data: after }),
+    prisma.auditLog.create({
+      data: {
+        action: "DESCRIPTION_UPDATED",
+        actor,
+        summary: describeChange(`${group.name} 단계`, group, after),
+        targetType: "OptionGroup",
+        targetId: `${input.productId}:${input.groupCode}`,
+        beforeValue: { summary: group.summary, detail: group.detail },
+        afterValue: after,
+      },
+    }),
+  ]);
+}
+
+/**
+ * 옵션 설명 수정. 대상은 `(groupId, optionCode)` 다. 옵션 행 id 는 금액 버전마다 바뀐다. (ADR-0025)
+ * 그래서 금액을 수정해도 설명은 그대로 따라온다.
+ *
+ * 활성 옵션만 대상이다. 없는 코드에 설명을 넣으면 화면에 뜨지 않는 행만 남는다.
+ */
+export async function saveOptionDescription(
+  input: OptionDescriptionInput,
+  actor: string,
+): Promise<void> {
+  const group = await prisma.optionGroup.findFirst({
+    where: { productId: input.productId, code: input.groupCode, isActive: true },
+    select: {
+      id: true,
+      options: {
+        where: { code: input.optionCode, isActive: true },
+        orderBy: { effectiveFrom: "desc" },
+        select: { name: true },
+        take: 1,
+      },
+      optionDescriptions: {
+        where: { optionCode: input.optionCode },
+        select: { summary: true, detail: true },
+      },
+    },
+  });
+  if (!group)
+    throw new Error(`옵션 그룹을 찾을 수 없습니다: ${input.groupCode}`);
+
+  const option = group.options[0];
+  if (!option) throw new Error(`옵션을 찾을 수 없습니다: ${input.optionCode}`);
+
+  const before = group.optionDescriptions[0] ?? { summary: null, detail: null };
+  const after = { summary: input.summary, detail: input.detail };
+  if (sameText(before, after)) return;
+
+  await prisma.$transaction([
+    prisma.optionDescription.upsert({
+      where: {
+        groupId_optionCode: {
+          groupId: group.id,
+          optionCode: input.optionCode,
+        },
+      },
+      create: {
+        groupId: group.id,
+        optionCode: input.optionCode,
+        ...after,
+        createdBy: actor,
+      },
+      update: after,
+    }),
+    prisma.auditLog.create({
+      data: {
+        action: "DESCRIPTION_UPDATED",
+        actor,
+        summary: describeChange(option.name, before, after),
+        targetType: "OptionDescription",
+        targetId: optionKey(input.groupCode, input.optionCode),
+        beforeValue: before,
+        afterValue: after,
+      },
+    }),
+  ]);
 }
 
 export interface AuditEntry {

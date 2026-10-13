@@ -4,15 +4,27 @@ import { PrismaClient } from "@prisma/client";
  * 입시 컨설팅 상품 4종. (docs/requirements.md 3절)
  *
  * 금액은 모두 부가세 포함, 원 단위 정수다.
- * 확정값은 카톡 소통 300,000 과 이메일 소통 100,000 뿐이다.
- * 그 외 금액과 할인율은 임시값이다. (docs/requirements.md Q-9)
+ * 네 상품 모두 확정값이다. 임시값은 남아 있지 않다.
+ * (ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030)
  * 교체할 때 이 파일의 숫자만 고치면 된다. 코드 수정은 필요하지 않다.
  */
 const prisma = new PrismaClient();
 
 const EFFECTIVE_FROM = new Date("2026-01-01T00:00:00.000Z");
 
-type OptionSeed = { code: string; name: string; amount: number };
+/**
+ * 소요 시간은 `name` 안에 넣는다. 별도 컬럼을 두지 않는다. (ADR-0026)
+ * `summary` 는 금액이 아니라 안내문이라 `OptionDescription` 으로 따로 저장된다. (ADR-0025)
+ */
+type OptionSeed = {
+  code: string;
+  name: string;
+  amount: number;
+  /// 이름 바로 아래 항상 보이는 한 줄
+  summary?: string;
+  /// `<details>` 로 접히는 긴 설명. 한 문단짜리는 이쪽이다
+  detail?: string;
+};
 
 type GroupSeed = {
   code: string;
@@ -43,13 +55,99 @@ type ProductSeed = {
   discounts: DiscountSeed[];
 };
 
-/** 올스토리 단계 옵션. 단계 수와 단계당 금액만 다르다. */
-function stageOptions(count: number, amount: number): OptionSeed[] {
-  return Array.from({ length: count }, (_, i) => ({
-    code: `STAGE_${i + 1}`,
-    name: `${i + 1}단계`,
-    amount,
-  }));
+/** 3회차·6회차가 같은 안내문을 쓴다. 받는 상담 내용이 같고 횟수만 다르다. */
+const COURSE_SESSION_SUMMARY =
+  "내신 성적 수준, 대학교 수준, 대학교 지원 어디까지 가능한지? 소개 및 생활기록부 수준, 전공적합성 코칭, 지원 대학 수준 학생부 종합전형 원리 코칭";
+
+/** 5건·10건이 같은 안내문을 쓴다. 건수만 다르다. */
+const COURSE_ASSIGNMENT_SUMMARY =
+  "기간은 고3 7월까지 / 창체활동 수행평가 가능 (채점기준표가 제시된 수행평가는 진행되지 않습니다.)";
+
+/**
+ * 올스토리 상담 단계의 **문구**. 고2는 여섯 단계 전부이고, 고3은 뒤 네 단계다.
+ * 고2 3~6단계와 고3 1~4단계가 같은 상담이라 문구를 한 곳에 두고 나눠 쓴다. (ADR-0029)
+ *
+ * **금액은 여기 없다.** 같은 상담이어도 상품마다 값이 달라서 상품 쪽에 있다. (ADR-0030)
+ * 단계 번호도 없다. 상품 안에서의 순서라서 `numberedStages` 가 붙인다.
+ *
+ * 세 자리로 나뉜다. (ADR-0031)
+ * 이름은 `1단계 (60~80분)` 까지이고 상담 제목은 `summary` 로 내려간다.
+ * 이름이 번호와 금액의 한정만 담으면 체크박스 줄이 짧아져서 단계 여섯 개가 한눈에 비교된다.
+ */
+type StageText = {
+  /** 이름의 괄호 안. 소요 시간과 금액의 한정이 들어간다. 견적 스냅샷에 남는다. */
+  qualifier: string;
+  /** 상담 제목. 이름 아래 항상 보이는 한 줄이다. (ADR-0025) */
+  summary: string;
+  /** 펼치기(`<details>`) 안의 한 문단. */
+  detail: string;
+};
+
+const ALLSTORY_STAGE_TEXT: StageText[] = [
+  {
+    qualifier: "60~80분",
+    summary: "고2 생기부 방향성 컨설팅",
+    detail:
+      "내신 성적과 기존 생기부를 분석해 희망 대학·학과에 필요한 역량을 점검하고, 학생의 강점과 관심 분야를 반영한 과목별 탐구 주제 및 활동 방향을 설정함.",
+  },
+  {
+    // `첨삭 제외` 는 금액의 한정이라 설명이 아니라 이름에 남는다. (ADR-0028)
+    qualifier: "60~80분, 첨삭 제외",
+    summary: "고2 생기부 작성·보완 컨설팅",
+    detail:
+      "고2 세특·자율·진로·동아리 활동을 점검하고, 실제 활동에서 나타난 탐구 과정과 배운 점이 생기부에 제대로 기록될 수 있도록 활동 내용 정리와 근거 자료 준비를 지원함.",
+  },
+  {
+    qualifier: "60~80분",
+    summary: "고3 활동 방향성 제시 및 심화탐구 설계",
+    detail:
+      "고2 활동과 희망 전공을 바탕으로 고3 활동 방향성을 제시하고, 기존 탐구를 발전시킬 수 있는 과목별 심화탐구·독서·발표·동아리 활동 계획을 구체화함.",
+  },
+  {
+    qualifier: "60~80분",
+    summary: "고3 3월 모의고사 성적표 분석 및 수시·정시 방향 상담",
+    detail:
+      "고3 3월 모의고사 성적표를 분석해 영역별 강점과 보완점, 정시 지원 가능성을 점검하고, 수시 중심으로 준비할지, 정시에 집중할지, 수시와 정시를 병행할지에 대한 입시 준비 방향을 설명함.",
+  },
+  {
+    qualifier: "60~80분",
+    summary: "고3 수시 대비 생기부 작성·보완 컨설팅",
+    detail:
+      "고3 1학기 세특과 주요 활동을 종합 점검하고, 실제 활동에서 드러난 학업역량·진로역량·공동체역량이 생기부에 제대로 기록될 수 있도록 핵심 활동 내용과 근거 자료 정리를 지원함.",
+  },
+  {
+    qualifier: "60~80분",
+    summary: "수시 6장 대학·학과·전형 최종 지원전략",
+    detail:
+      "내신·생기부 경쟁력과 수능 최저학력기준 충족 가능성, 면접 일정을 함께 검토해 상향·적정·안정 지원 조합을 구성하고, 수시 6장의 대학·학과·전형별 최종 지원전략을 수립함.",
+  },
+];
+
+/** 고3은 뒤 네 단계다. 고2 3단계가 고3 1단계가 된다. (ADR-0029) */
+const ALLSTORY_G3_FROM = 2;
+
+/**
+ * 단계 금액. 상품마다 따로 있다. 같은 상담이어도 값이 같다는 보장이 없다. (ADR-0030)
+ * 고3 4단계 590,000원은 같은 상담인 고2 6단계 490,000원과 다르다.
+ */
+const ALLSTORY_G2_AMOUNTS = [
+  199_000, 249_000, 199_000, 149_000, 249_000, 490_000,
+];
+const ALLSTORY_G3_AMOUNTS = [199_000, 149_000, 249_000, 590_000];
+
+/** 단계 번호는 그 상품 안에서 1부터 붙는다. `code` 도 그 번호를 따른다. (ADR-0029) */
+function numberedStages(text: StageText[], amounts: number[]): OptionSeed[] {
+  return amounts.map((amount, i) => {
+    const stage = text[i];
+    if (!stage) throw new Error(`${i + 1}단계 문구가 없다`);
+    return {
+      code: `STAGE_${i + 1}`,
+      name: `${i + 1}단계 (${stage.qualifier})`,
+      amount,
+      summary: stage.summary,
+      detail: stage.detail,
+    };
+  });
 }
 
 function allStagesCondition(count: number) {
@@ -70,26 +168,37 @@ const PRODUCTS: ProductSeed[] = [
         required: false,
         singleSelect: false,
         options: [
-          { code: "NAESIN", name: "내신 성적 분석", amount: 150_000 },
-          { code: "MOCK", name: "모의고사 성적 분석", amount: 150_000 },
-          { code: "RECORD", name: "생활기록부 분석", amount: 200_000 },
+          {
+            code: "NAESIN",
+            name: "내신 성적 분석 (30분)",
+            amount: 59_000,
+            summary:
+              "내신 성적 수준, 대학교 수준, 대학교 지원 어디까지 가능한지?",
+          },
+          {
+            code: "MOCK",
+            name: "모의고사 성적 분석 (30분)",
+            amount: 59_000,
+            summary:
+              "대학교 수준, 대학교 지원 어디까지 가능한지, 국영수 학업 방향성(고3 6, 9월 제외) 고1, 2까지는 분석 가능",
+          },
+          {
+            code: "RECORD",
+            name: "생활기록부 분석 (1시간)",
+            amount: 149_000,
+            summary:
+              "생활기록부 수준, 전공적합성 코칭, 지원 대학 수준 학생부 종합전형 원리 코칭",
+          },
+          {
+            code: "V1",
+            name: "내신 + 생활기록부 분석 (60~70분)",
+            amount: 199_000,
+          },
         ],
       },
     ],
-    discounts: [
-      {
-        code: "BUNDLE_ALL",
-        name: "통합 할인 (분석 3개)",
-        type: "RATE",
-        rate: "0.1500",
-        priority: 10,
-        conditions: [
-          { groupCode: "ANALYSIS", optionCode: "NAESIN" },
-          { groupCode: "ANALYSIS", optionCode: "MOCK" },
-          { groupCode: "ANALYSIS", optionCode: "RECORD" },
-        ],
-      },
-    ],
+    // 1회성 컨설팅에는 할인이 없다. 묶음은 할인 조건이 아니라 V1 옵션의 정액이다. (ADR-0026)
+    discounts: [],
   },
   {
     code: "COURSE",
@@ -101,8 +210,18 @@ const PRODUCTS: ProductSeed[] = [
         required: false,
         singleSelect: true,
         options: [
-          { code: "S3", name: "3회차", amount: 600_000 },
-          { code: "S6", name: "6회차", amount: 1_100_000 },
+          {
+            code: "S3",
+            name: "3회차 (1회당 60~80분)",
+            amount: 580_000,
+            summary: COURSE_SESSION_SUMMARY,
+          },
+          {
+            code: "S6",
+            name: "6회차 (1회당 60~80분)",
+            amount: 1_100_000,
+            summary: COURSE_SESSION_SUMMARY,
+          },
         ],
       },
       {
@@ -112,8 +231,20 @@ const PRODUCTS: ProductSeed[] = [
         singleSelect: true,
         dependsOn: "SESSIONS",
         options: [
-          { code: "KAKAO", name: "카톡 소통", amount: 300_000 },
-          { code: "EMAIL", name: "이메일 소통", amount: 100_000 },
+          {
+            code: "KAKAO",
+            name: "카톡 소통 (6개월)",
+            amount: 390_000,
+            summary:
+              "전용 카카오톡 상담방 개설, 회차 사이에도 질문·자료 전달 가능, 6개월 이용",
+          },
+          {
+            code: "EMAIL",
+            name: "이메일 소통 (1년)",
+            amount: 99_000,
+            summary:
+              "네이버 이메일로 자료·질문 전달, 회차 사이에도 상담 가능, 1년 이용",
+          },
         ],
       },
       {
@@ -123,8 +254,36 @@ const PRODUCTS: ProductSeed[] = [
         singleSelect: true,
         dependsOn: "SESSIONS",
         options: [
-          { code: "A5", name: "5건", amount: 250_000 },
-          { code: "A10", name: "10건", amount: 450_000 },
+          {
+            code: "A5",
+            name: "5건",
+            amount: 250_000,
+            summary: COURSE_ASSIGNMENT_SUMMARY,
+          },
+          {
+            code: "A10",
+            name: "10건",
+            amount: 450_000,
+            summary: COURSE_ASSIGNMENT_SUMMARY,
+          },
+        ],
+      },
+      {
+        // 회차 중간에 끼워 넣는 상담이다. 다른 선택을 대체하지 않으므로 복수 선택이다. (ADR-0027)
+        code: "EXTRA",
+        name: "추가 옵션",
+        required: false,
+        singleSelect: false,
+        dependsOn: "SESSIONS",
+        options: [
+          {
+            // 1회성 컨설팅의 MOCK 과 같은 코드지만 그룹이 달라 별개 옵션이다. (ADR-0027)
+            code: "MOCK",
+            name: "모의고사 성적 분석 (30분)",
+            amount: 59_000,
+            summary:
+              "대학교 수준, 대학교 지원 어디까지 가능한지, 국영수 학업 방향성(고3 6, 9월 제외) 고1, 2까지는 분석 가능",
+          },
         ],
       },
     ],
@@ -139,15 +298,19 @@ const PRODUCTS: ProductSeed[] = [
         name: "단계",
         required: false,
         singleSelect: false,
-        options: stageOptions(6, 200_000),
+        options: numberedStages(ALLSTORY_STAGE_TEXT, ALLSTORY_G2_AMOUNTS),
       },
     ],
     discounts: [
       {
         code: "ALL_STAGES",
         name: "전단계 할인",
-        type: "RATE",
-        rate: "0.1000",
+        // 통합등록 1,490,000원은 단계 합에서 유도된 값이 아니라 따로 정해진 값이다.
+        // 비율로는 이 금액이 정확히 나오지 않아 정액으로 둔다. (ADR-0028)
+        // 단계 합 1,535,000 - 통합등록 1,490,000 = 45,000.
+        // 단계 금액을 바꾸면 이 값도 다시 계산해야 한다.
+        type: "FIXED",
+        amount: 45_000,
         priority: 10,
         conditions: allStagesCondition(6),
       },
@@ -162,15 +325,21 @@ const PRODUCTS: ProductSeed[] = [
         name: "단계",
         required: false,
         singleSelect: false,
-        options: stageOptions(4, 250_000),
+        options: numberedStages(
+          ALLSTORY_STAGE_TEXT.slice(ALLSTORY_G3_FROM),
+          ALLSTORY_G3_AMOUNTS,
+        ),
       },
     ],
     discounts: [
       {
         code: "ALL_STAGES",
         name: "전단계 할인",
-        type: "RATE",
-        rate: "0.1000",
+        // 통합등록 1,150,000원도 단계 합에서 유도된 값이 아니다. 고2와 같이 정액이다. (ADR-0030)
+        // 단계 합 1,187,000 - 통합등록 1,150,000 = 37,000.
+        // 단계 금액을 바꾸면 이 값도 다시 계산해야 한다.
+        type: "FIXED",
+        amount: 37_000,
         priority: 10,
         conditions: allStagesCondition(4),
       },
@@ -218,6 +387,19 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
     });
 
     groupIdByCode.set(group.code, created.id);
+
+    // 설명은 금액 버전 테이블이 아닌 별도 행이다. 옵션은 (groupId, code) 로 가리킨다. (ADR-0025)
+    for (const option of group.options) {
+      if (!option.summary && !option.detail) continue;
+      await prisma.optionDescription.create({
+        data: {
+          groupId: created.id,
+          optionCode: option.code,
+          summary: option.summary ?? null,
+          detail: option.detail ?? null,
+        },
+      });
+    }
   }
 
   for (const discount of seed.discounts) {
@@ -246,6 +428,7 @@ async function main() {
   await prisma.discountCondition.deleteMany();
   await prisma.discountRule.deleteMany();
   await prisma.productOption.deleteMany();
+  await prisma.optionDescription.deleteMany();
   await prisma.optionGroup.deleteMany();
   await prisma.product.deleteMany();
 

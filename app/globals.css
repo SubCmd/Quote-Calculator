@@ -52,6 +52,32 @@ body {
   margin: 0 auto;
 }
 
+/* 로고와 이름·제목을 한 줄로 묶는다. 로고가 왼쪽, 글자가 오른쪽이다. */
+.app-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+/* 높이만 정하고 너비는 원본 비율에 맡긴다. */
+.app-logo {
+  display: block;
+  height: 3.25rem;
+  width: auto;
+  flex: none;
+  border-radius: 8px;
+}
+
+/* 로고 옆에서는 브랜드 줄의 네모 표식이 중복이다. */
+.app-identity .brand::before {
+  display: none;
+}
+
+/* 아래 여백이 남으면 글자 묶음의 중심이 로고 중심보다 위로 올라간다. */
+.app-identity h1 {
+  margin-bottom: 0;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -60,8 +86,9 @@ body {
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--brand-ink);
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
+  /* `Conshow` 의 대소문자를 그대로 둔다. */
+  text-transform: none;
+  margin-bottom: 0.25rem;
 }
 
 .brand::before {
@@ -82,6 +109,10 @@ h1 {
   color: var(--muted);
   font-size: 0.875rem;
   margin: 0;
+}
+
+.app-identity + .subtitle {
+  margin-top: 0.625rem;
 }
 
 main {
@@ -238,7 +269,7 @@ fieldset.locked .step {
     border-color 0.1s;
 }
 
-.option-row + .option-row {
+.option-item + .option-item {
   margin-top: 0.25rem;
 }
 
@@ -262,12 +293,12 @@ fieldset:not(.locked) .option-row:hover {
   background: #f7f7f9;
 }
 
-fieldset:not(.locked) .option-row:not(.select-all):has(input:checked) {
+fieldset:not(.locked) .option-row:has(input:checked) {
   background: var(--brand-soft);
   border-color: var(--brand-border);
 }
 
-fieldset:not(.locked) .option-row:not(.select-all):has(input:checked) label {
+fieldset:not(.locked) .option-row:has(input:checked) label {
   font-weight: 600;
   color: var(--brand-ink);
 }
@@ -282,21 +313,83 @@ fieldset.locked .option-row input {
   cursor: not-allowed;
 }
 
-.option-row.select-all {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--line-strong);
-  border-radius: 0;
-}
+/* ---------- 설명 문구 (ADR-0025) ----------
+   한 줄은 항상 보이고 긴 설명만 접는다. 호버 툴팁을 쓰지 않는다.
+   옵션 설명은 체크박스 폭만큼 들여써서 이름 아래에 붙은 것으로 읽히게 한다. */
 
-.option-row.select-all:hover {
-  background: none;
-}
-
-.option-row.select-all label {
+.description {
+  margin: 0 0 0.625rem;
   color: var(--muted);
   font-size: 0.8125rem;
-  font-weight: 400;
+  line-height: 1.55;
+  /* 관리자가 넣은 줄바꿈만 살린다. HTML 로 해석하지 않는다 */
+  white-space: pre-line;
+}
+
+.option-item .description {
+  margin: -0.125rem 0 0.25rem;
+  padding-left: 2.4375rem;
+}
+
+.description-detail {
+  margin: 0 0 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.option-item .description-detail {
+  margin-bottom: 0.25rem;
+  padding-left: 2.4375rem;
+}
+
+.description-detail > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  color: var(--brand-ink);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.description-detail > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 화살표는 펼칠 방향을 가리킨다. 열리면 아래를 향한다. 글자가 접근성 이름이므로 텍스트로 넣지 않는다. */
+.description-detail > summary::after {
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  content: "";
+}
+
+.description-detail[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .description-detail > summary::after {
+    transition: none;
+  }
+}
+
+.description-detail > summary:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--brand-ink);
+  outline-offset: 2px;
+}
+
+.description-detail > p {
+  margin: 0.375rem 0 0;
+  padding: 0.625rem 0.75rem;
+  border-left: 2px solid var(--brand-border);
+  background: #f7f7f9;
+  color: var(--muted);
+  line-height: 1.65;
+  white-space: pre-line;
 }
 
 .group-error {
@@ -784,6 +877,20 @@ fieldset.locked .option-row input {
   border-color: var(--brand);
 }
 
+/* 설명 입력. 고객 화면에서 한 줄로 읽히는지 보려면 입력칸도 넓어야 한다. (ADR-0025) */
+.text-input.wide {
+  width: 100%;
+  max-width: 34rem;
+}
+
+.text-input.detail-input {
+  display: block;
+  width: 100%;
+  max-width: 34rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
 .new-option {
   display: flex;
   flex-wrap: wrap;
@@ -1165,6 +1272,145 @@ fieldset.locked .option-row input {
 .account-box .account-no {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+}
+
+/* ── 결제 방식 (ADR-0033) ──────────────────────────────────
+   고객과 담당자가 같은 선택 칸을 쓴다. 고른 뒤 안내가 아래에 붙는다. */
+
+.payment-section {
+  margin: 1.25rem 0 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+}
+.payment-section h2 {
+  margin: 0 0 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.method-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.method-choices button {
+  display: flex;
+  flex: 1 1 10rem;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  text-align: left;
+}
+.method-choices .method-label {
+  font-weight: 700;
+}
+.method-choices .method-desc {
+  font-size: 0.75rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.method-choices .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* 사유가 없을 때 aria-live 칸이 자리를 차지하지 않게 한다. */
+.method-choices .form-error:empty {
+  display: none;
+}
+
+.method-notice {
+  margin: 0.875rem 0 0;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--line);
+}
+.method-notice h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.method-notice p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.method-notice .detail-grid {
+  margin: 0.5rem 0 0;
+}
+
+/* ── 표시 순서 (ADR-0026) ──────────────────────────────────
+   위아래 버튼으로 한 칸씩 옮기고, 저장할 때 전체 순열을 보낸다. */
+
+.card h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.order-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.order-list li + li {
+  margin-top: 0.25rem;
+}
+
+/* 자리 번호 입력. 너비를 고정해 줄마다 제목이 같은 자리에서 시작한다. */
+.order-number {
+  width: 3rem;
+  flex: none;
+  padding: 0.25rem 0.375rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.order-label {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+
+/* 번호를 고쳐 나올 순서. 줄을 움직이지 않는 대신 결과를 여기서 보여준다. (ADR-0032) */
+.order-preview {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.625rem 0.5rem 1.875rem;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.order-preview li + li {
+  margin-top: 0.125rem;
+}
+
+.order-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.625rem;
+}
+
+.order-actions .primary,
+.order-actions .ghost {
+  font-size: 0.8125rem;
+  padding: 0.4375rem 0.75rem;
 }
 
 /* ── 관리자 견적 목록·상세 ─────────────────────────────────── */
