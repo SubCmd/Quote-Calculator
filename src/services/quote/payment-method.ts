@@ -1,7 +1,7 @@
 import type { PaymentMethod } from "@prisma/client";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import {
-  findQuoteStatus,
+  findVisibleQuoteStatus,
   updateQuotePaymentMethod,
 } from "@/repositories/quote";
 
@@ -25,7 +25,8 @@ export async function selectPaymentMethod(
   paymentMethod: PaymentMethod,
   actor: string,
 ): Promise<SelectPaymentMethodResult> {
-  const current = await findQuoteStatus(publicId);
+  // 숨긴 견적은 없는 것으로 다룬다. 받을 사람이 없는 선택을 저장하지 않는다. (ADR-0035)
+  const current = await findVisibleQuoteStatus(publicId);
   if (current === null) return { ok: false, reason: "not-found" };
   if (current !== "REQUESTED") return { ok: false, reason: "not-allowed" };
 

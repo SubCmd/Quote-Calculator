@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isAdmin, isAdminConfigured } from "@/lib/auth";
 import { formatKRW } from "@/lib/money";
+import { paymentMethodLabel } from "@/lib/payment-method";
 import { listQuotes } from "@/services/quote/admin-quotes";
 import { parseSearchRange } from "@/services/quote/search-range";
 import { statusLabel } from "@/services/quote/transition";
@@ -44,6 +45,7 @@ export default async function AdminQuotesPage({
     name?: string;
     from?: string;
     to?: string;
+    hidden?: string;
   }>;
 }) {
   if (!isAdminConfigured()) notFound();
@@ -55,11 +57,13 @@ export default async function AdminQuotesPage({
   const status = parseStatus(query.status);
   const customerName = parseName(query.name);
   const { from, until } = parseSearchRange(query.from, query.to);
+  // 숨긴 견적은 따로 본다. 되돌릴 자리가 그 목록이다. (ADR-0035)
+  const hidden = query.hidden === "1";
 
   // 이름으로 검색하면 열람 기록이 남는다.
   const { items, total, page, pageCount } = await listQuotes(
     parsePage(query.page),
-    { status, customerName, from, until },
+    { status, customerName, from, until, hidden },
     ACTOR,
     now,
   );
@@ -71,6 +75,7 @@ export default async function AdminQuotesPage({
       name: query.name?.trim() ?? null,
       from: query.from ?? null,
       to: query.to ?? null,
+      hidden: hidden ? "1" : null,
       ...overrides,
     };
     for (const [key, value] of Object.entries(merged))
@@ -111,6 +116,7 @@ export default async function AdminQuotesPage({
       <main>
         <form className="card search-form" method="get" action="/admin/quotes">
           {status && <input type="hidden" name="status" value={status} />}
+          {hidden && <input type="hidden" name="hidden" value="1" />}
           <div className="search-field">
             <label htmlFor="name">고객명</label>
             <input
@@ -155,7 +161,21 @@ export default async function AdminQuotesPage({
             </Link>
           ))}
           <span className="muted">{total}건</span>
+          <Link
+            href={hrefWith({ hidden: hidden ? null : "1", page: null })}
+            className={hidden ? "chip selected" : "chip"}
+            aria-current={hidden ? "page" : undefined}
+          >
+            {hidden ? "← 보이는 견적" : "숨긴 견적"}
+          </Link>
         </nav>
+
+        {hidden && (
+          <p className="hint">
+            숨긴 견적입니다. 데이터는 지워지지 않았고 고객 링크만 닫혀 있습니다.
+            상세를 열어 되돌릴 수 있습니다. (ADR-0035)
+          </p>
+        )}
 
         <div className="card">
           {items.length === 0 ? (
@@ -169,6 +189,7 @@ export default async function AdminQuotesPage({
                   <th>고객</th>
                   <th>연락처</th>
                   <th>총액</th>
+                  <th>결제 방식</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -184,6 +205,11 @@ export default async function AdminQuotesPage({
                     <td>{item.maskedName}</td>
                     <td className="num">{item.maskedPhone}</td>
                     <td className="num">{formatKRW(item.totalAmount)}</td>
+                    <td>
+                      {item.paymentMethod
+                        ? paymentMethodLabel(item.paymentMethod)
+                        : "—"}
+                    </td>
                     <td>
                       <span
                         className={

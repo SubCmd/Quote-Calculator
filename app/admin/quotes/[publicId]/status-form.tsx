@@ -9,17 +9,22 @@ interface NextStatus {
 }
 
 /**
- * 상태 변경. 되돌릴 수 없는 작업이라 확인 단계를 둔다. (`.claude/rules/admin.md`)
- * 어떤 전이가 가능한지는 서버가 내려준 목록만 믿는다.
+ * 상태 변경. 어떤 전이가 가능한지는 서버가 내려준 목록만 믿는다.
+ *
+ * 확인 단계를 두는 이유가 "되돌릴 수 없어서" 는 아니다. 확정·취소는 되돌릴 수 있다. (ADR-0034)
+ * 목록에서 옆 줄을 눌러 엉뚱한 견적을 바꾸는 일을 막는 자리다.
  */
 export function StatusForm({
   publicId,
   currentLabel,
   nextStatuses,
+  leavingConfirmed,
 }: {
   publicId: string;
   currentLabel: string;
   nextStatuses: NextStatus[];
+  /** 확정을 떠나는 전이면 `confirmedAt` 이 비워진다. 판단은 서버가 한다. */
+  leavingConfirmed: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
@@ -28,7 +33,8 @@ export function StatusForm({
   async function change(next: NextStatus) {
     const ok = window.confirm(
       `상태를 '${currentLabel}' 에서 '${next.label}' 로 바꿉니다.\n` +
-        `되돌릴 수 없습니다. 계속할까요?`,
+        (leavingConfirmed ? "확정 시각이 지워집니다.\n" : "") +
+        `변경 기록이 남습니다. 계속할까요?`,
     );
     if (!ok) return;
 
@@ -50,15 +56,6 @@ export function StatusForm({
 
     router.refresh();
     setPending(null);
-  }
-
-  if (nextStatuses.length === 0) {
-    return (
-      <p className="hint">
-        &apos;{currentLabel}&apos; 은 종착 상태입니다. 금액을 바꿔야 하면 복제해
-        새 견적을 만드세요.
-      </p>
-    );
   }
 
   return (

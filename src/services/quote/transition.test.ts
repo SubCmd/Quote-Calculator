@@ -14,13 +14,29 @@ describe("상태 전이", () => {
     expect(allowedTransitions("REQUESTED")).toEqual(["CONFIRMED", "CANCELED"]);
   });
 
-  it("CONFIRMED 는 종착 상태라 더 바꿀 수 없다", () => {
-    expect(allowedTransitions("CONFIRMED")).toEqual([]);
-    expect(canTransition("CONFIRMED", "CANCELED")).toBe(false);
+  // 되돌리기. 오조작을 고치는 길이다. (ADR-0034)
+  it("CONFIRMED 는 REQUESTED 로 되돌릴 수 있다", () => {
+    expect(allowedTransitions("CONFIRMED")).toEqual(["REQUESTED"]);
   });
 
-  it("CANCELED 는 되살릴 수 없다", () => {
-    expect(canTransition("CANCELED", "REQUESTED")).toBe(false);
+  it("CANCELED 는 REQUESTED 로 되돌릴 수 있다", () => {
+    expect(allowedTransitions("CANCELED")).toEqual(["REQUESTED"]);
+  });
+
+  it("CONFIRMED 와 CANCELED 는 직접 오갈 수 없다", () => {
+    expect(canTransition("CONFIRMED", "CANCELED")).toBe(false);
+    expect(canTransition("CANCELED", "CONFIRMED")).toBe(false);
+  });
+
+  it("되돌린 뒤에는 다시 확정하거나 취소할 수 있다", () => {
+    expect(canTransition("CONFIRMED", "REQUESTED")).toBe(true);
+    expect(canTransition("REQUESTED", "CANCELED")).toBe(true);
+  });
+
+  it("DRAFT 로는 되돌릴 수 없다", () => {
+    expect(canTransition("CONFIRMED", "DRAFT")).toBe(false);
+    expect(canTransition("CANCELED", "DRAFT")).toBe(false);
+    expect(canTransition("REQUESTED", "DRAFT")).toBe(false);
   });
 
   it("DRAFT 에서 CONFIRMED 로 건너뛸 수 없다", () => {
@@ -47,9 +63,16 @@ describe("상태 전이", () => {
     );
   });
 
-  it("종착 상태면 더 바꿀 수 없다고 알려준다", () => {
+  // 저장 상태에는 종착이 없다. 이 분기는 EXPIRED 처럼 저장되지 않는 상태만 닿는다. (ADR-0034)
+  it("나갈 길이 없는 상태면 더 바꿀 수 없다고 알려준다", () => {
+    expect(transitionError("EXPIRED", "REQUESTED")).toBe(
+      "'유효기간 지남' 견적은 상태를 더 바꿀 수 없습니다.",
+    );
+  });
+
+  it("확정에서 취소로 가려면 경로가 없다고 알려준다", () => {
     expect(transitionError("CONFIRMED", "CANCELED")).toBe(
-      "'확정' 견적은 상태를 더 바꿀 수 없습니다.",
+      "'확정' 에서 '취소' 로는 바꿀 수 없습니다.",
     );
   });
 

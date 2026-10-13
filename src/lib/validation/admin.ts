@@ -165,3 +165,9 @@ export const quoteStatusSchema = z.object({
 export const paymentMethodSchema = z.object({
   paymentMethod: z.enum(["BANK_TRANSFER", "CARD", "CONSULTATION"]),
 });
+
+/**
+ * 견적 숨기기·되돌리기. 숨김은 상태가 아니라 표시 여부라서 따로 받는다. (ADR-0035)
+ * 되돌리는 요청과 같은 모양이어야 하므로 `hidden` 한 칸이다.
+ */
+export const quoteHiddenSchema = z.object({ hidden: z.boolean() });

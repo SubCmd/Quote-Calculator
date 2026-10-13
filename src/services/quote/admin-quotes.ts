@@ -6,6 +6,7 @@ import {
   findQuoteStatus,
   logQuoteSearch,
   logQuoteView,
+  setQuoteHidden,
   updateQuoteStatus,
 } from "@/repositories/quote";
 import { displayStatus } from "./expiry";
@@ -24,6 +25,10 @@ export interface AdminQuoteListItem {
   productName: string;
   totalAmount: number;
   calculatedAt: Date;
+  /** 고객이 고른 결제 방식. 누구에게 연락할지 목록에서 바로 보인다. (ADR-0033) */
+  paymentMethod: PaymentMethod | null;
+  /** 숨긴 시각. 숨긴 견적 목록에서만 값이 있다. (ADR-0035) */
+  hiddenAt: Date | null;
 }
 
 export interface AdminQuoteList {
@@ -39,6 +44,8 @@ export interface QuoteSearch {
   customerName: string | null;
   from: Date | null;
   until: Date | null;
+  /** `true` 면 숨긴 견적만 본다. 되돌릴 자리가 그 목록이다. (ADR-0035) */
+  hidden: boolean;
 }
 
 export async function listQuotes(
@@ -67,6 +74,8 @@ export async function listQuotes(
       productName: row.productNames[0] ?? "—",
       totalAmount: row.totalAmount,
       calculatedAt: row.calculatedAt,
+      paymentMethod: row.paymentMethod,
+      hiddenAt: row.hiddenAt,
     })),
     total,
     page,
@@ -101,6 +110,8 @@ export interface AdminQuoteDetail {
   nextStatuses: { value: QuoteStatus; label: string }[];
   /** 선택한 결제 방식. null이면 아직 선택되지 않음 */
   paymentMethod: PaymentMethod | null;
+  /** 숨긴 시각. 값이 있으면 고객 링크가 닫혀 있다. (ADR-0035) */
+  hiddenAt: Date | null;
 }
 
 /**
@@ -140,6 +151,7 @@ export async function getQuoteDetail(
       label: statusLabel(value),
     })),
     paymentMethod: quote.paymentMethod,
+    hiddenAt: quote.hiddenAt,
   };
 }
 
@@ -190,5 +202,43 @@ export async function changeQuoteStatus(
     };
 
   return { ok: true, status: to };
+}
+
+export type HideQuoteResult =
+  | { ok: true; hidden: boolean }
+  | { ok: false; reason: "not-found" | "conflict"; error: string };
+
+/**
+ * 목록에서 숨기기·되돌리기. 행을 지우지 않는다. (ADR-0035)
+ * 숨기면 고객 링크도 함께 닫히고, 되돌리면 같은 `publicId` 가 다시 열린다.
+ */
+export async function setQuoteVisibility(
+  publicId: string,
+  hide: boolean,
+  actor: string,
+): Promise<HideQuoteResult> {
+  // 숨긴 견적도 찾아야 한다. 되돌리는 요청이 그 상태에서 온다.
+  const current = await findQuoteStatus(publicId);
+  if (current === null)
+    return { ok: false, reason: "not-found", error: "견적을 찾을 수 없습니다." };
+
+  const changed = await setQuoteHidden(
+    publicId,
+    hide,
+    actor,
+    `견적 ${publicId} ${hide ? "숨김" : "숨김 해제"}`,
+  );
+
+  // 이미 그 상태였다. 기록만 한 줄 더 남기지 않는다.
+  if (!changed)
+    return {
+      ok: false,
+      reason: "conflict",
+      error: hide
+        ? "이미 숨긴 견적입니다."
+        : "숨겨져 있지 않은 견적입니다. 새로 고쳐 주세요.",
+    };
+
+  return { ok: true, hidden: hide };
 }
 

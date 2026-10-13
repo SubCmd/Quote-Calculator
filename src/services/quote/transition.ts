@@ -2,12 +2,18 @@ import type { QuoteStatus } from "@prisma/client";
 
 /**
  * 허용되는 상태 전이. `docs/architecture.md` 6절이 기준이다.
- * `CONFIRMED`·`CANCELED` 는 종착 상태라 키가 없다.
+ *
+ * `CONFIRMED`·`CANCELED` 에서 `REQUESTED` 로 되돌릴 수 있다. (ADR-0034) 오조작을 고치는
+ * 길이다. 둘이 직접 오가지는 못한다 — `REQUESTED` 를 거쳐야 거쳐 간 자리가 로그에 남는다.
+ * `DRAFT` 로는 되돌릴 수 없다. 고객이 요청한 사실은 없던 일이 되지 않는다.
+ *
  * `EXPIRED` 는 저장 상태가 아니므로 출발점도 도착점도 될 수 없다. (ADR-0012)
  */
 const ALLOWED: Partial<Record<QuoteStatus, QuoteStatus[]>> = {
   DRAFT: ["REQUESTED"],
   REQUESTED: ["CONFIRMED", "CANCELED"],
+  CONFIRMED: ["REQUESTED"],
+  CANCELED: ["REQUESTED"],
 };
 
 export function allowedTransitions(from: QuoteStatus): QuoteStatus[] {

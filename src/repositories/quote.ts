@@ -123,12 +123,15 @@ export async function createClonedQuote(
   });
 }
 
-/** 고객 조회용. 개인정보 컬럼은 꺼내지 않는다. (`.claude/rules/database.md`) */
+/**
+ * 고객 조회용. 개인정보 컬럼은 꺼내지 않는다. (`.claude/rules/database.md`)
+ * 숨긴 견적은 없는 것으로 다룬다. 그래서 `/q/[publicId]` 와 인쇄 화면이 함께 닫힌다. (ADR-0035)
+ */
 export async function findQuoteByPublicId(
   publicId: string,
 ): Promise<QuoteRow | null> {
-  const quote = await prisma.quote.findUnique({
-    where: { publicId },
+  const quote = await prisma.quote.findFirst({
+    where: { publicId, hiddenAt: null },
     select: {
       publicId: true,
       status: true,
@@ -183,6 +186,10 @@ export interface QuoteListRow {
   calculatedAt: Date;
   expiresAt: Date;
   productNames: string[];
+  /** 고객이 고른 결제 방식. 누구에게 연락할지 목록에서 바로 보인다. (ADR-0033) */
+  paymentMethod: PaymentMethod | null;
+  /** 숨긴 시각. 숨긴 견적 목록에서만 값이 있다. (ADR-0035) */
+  hiddenAt: Date | null;
 }
 
 export interface QuoteListPage {
@@ -193,6 +200,8 @@ export interface QuoteListPage {
 /** 목록 검색 조건. 기간은 `calculatedAt` 기준이다. (ADR-0015) */
 export interface QuoteListFilter {
   status: QuoteStatus | null;
+  /** `true` 면 숨긴 견적만 본다. 기본은 숨긴 것을 제외한 목록이다. (ADR-0035) */
+  hidden: boolean;
   /** 고객명 부분 일치. 빈 값이면 조건 없음 */
   customerName: string | null;
   from: Date | null;
@@ -206,6 +215,8 @@ function quoteListWhere(filter: QuoteListFilter): Prisma.QuoteWhereInput {
   if (filter.until) calculatedAt.lt = filter.until;
 
   return {
+    // 숨긴 것과 보이는 것을 한 목록에 섞지 않는다. (ADR-0035)
+    hiddenAt: filter.hidden ? { not: null } : null,
     ...(filter.status === null ? {} : { status: filter.status }),
     ...(filter.customerName === null
       ? {}
@@ -241,6 +252,8 @@ export async function findQuoteList(
         totalAmount: true,
         calculatedAt: true,
         expiresAt: true,
+        paymentMethod: true,
+        hiddenAt: true,
         items: { select: { product: { select: { name: true } } } },
       },
     }),
@@ -256,6 +269,8 @@ export async function findQuoteList(
       totalAmount: quote.totalAmount,
       calculatedAt: quote.calculatedAt,
       expiresAt: quote.expiresAt,
+      paymentMethod: quote.paymentMethod,
+      hiddenAt: quote.hiddenAt,
       productNames: quote.items.map((item) => item.product.name),
     })),
     total,
@@ -272,6 +287,8 @@ export interface QuoteDetailRow extends QuoteRow {
   purgedAt: Date | null;
   createdAt: Date;
   paymentMethod: PaymentMethod | null;
+  /** 숨긴 시각. 관리자 상세는 숨긴 견적도 보여준다. 되돌릴 자리가 거기다. (ADR-0035) */
+  hiddenAt: Date | null;
 }
 
 /** 상세 조회. 개인정보를 꺼내므로 호출하는 쪽에서 열람 로그를 남긴다. */
@@ -311,6 +328,7 @@ export async function findQuoteDetail(
     expiresAt: quote.expiresAt,
     createdAt: quote.createdAt,
     paymentMethod: quote.paymentMethod,
+    hiddenAt: quote.hiddenAt,
     items: quote.items.map((item) => ({
       productId: item.productId,
       productName: item.product.name,
@@ -334,6 +352,58 @@ export async function findQuoteStatus(
 }
 
 /**
+ * 고객 요청에서 쓰는 상태 조회. 숨긴 견적은 없는 것으로 다룬다. (ADR-0035)
+ * 관리자용 `findQuoteStatus` 와 가른 이유는, 숨겨 둔 견적의 상태는 관리자가
+ * 되돌리기 전에도 읽어야 하지만 고객에게는 그 견적이 존재하지 않아야 하기 때문이다.
+ */
+export async function findVisibleQuoteStatus(
+  publicId: string,
+): Promise<QuoteStatus | null> {
+  const quote = await prisma.quote.findFirst({
+    where: { publicId, hiddenAt: null },
+    select: { status: true },
+  });
+  return quote?.status ?? null;
+}
+
+/**
+ * 목록에서 숨기기·되돌리기. 행을 지우지 않는다. (ADR-0035)
+ * `where` 에 이전 `hiddenAt` 상태를 함께 걸어 두면 같은 버튼을 두 번 눌렀을 때
+ * 두 번째가 기록만 더 남기지 않는다.
+ */
+export async function setQuoteHidden(
+  publicId: string,
+  hide: boolean,
+  actor: string,
+  summary: string,
+): Promise<boolean> {
+  const hiddenAt = hide ? new Date() : null;
+
+  return prisma.$transaction(async (tx) => {
+    const changed = await tx.quote.updateMany({
+      where: { publicId, hiddenAt: hide ? null : { not: null } },
+      data: { hiddenAt },
+    });
+
+    if (changed.count === 0) return false;
+
+    await tx.auditLog.create({
+      data: {
+        action: hide ? "QUOTE_HIDDEN" : "QUOTE_RESTORED",
+        actor,
+        summary,
+        targetType: "Quote",
+        targetId: publicId,
+        beforeValue: { hidden: !hide },
+        afterValue: { hidden: hide },
+      },
+    });
+
+    return true;
+  });
+}
+
+/**
  * 상태 변경과 감사 기록을 같은 트랜잭션에서 수행한다. (`.claude/rules/admin.md`)
  * `where` 에 이전 상태를 함께 걸어 두면 그 사이 누가 먼저 바꿨을 때 덮어쓰지 않는다.
  * 금액·선택 내역 컬럼은 건드리지 않는다. (CLAUDE.md 6번)
@@ -349,7 +419,13 @@ export async function updateQuoteStatus(
     const changed = await tx.quote.updateMany({
       where: { publicId, status: from },
       // 확정 시각은 보존기간 5년의 기준점이라 전이와 같은 트랜잭션에서 찍는다. (ADR-0022)
-      data: to === "CONFIRMED" ? { status: to, confirmedAt: new Date() } : { status: to },
+      // 되돌릴 때 비우는 것도 같은 이유다. 확정이 아닌 견적이 확정 시각을 들고 있으면
+      // 보존기간을 셀 때 상태와 시각 중 어느 쪽을 믿어야 할지 알 수 없다. (ADR-0034)
+      data: {
+        status: to,
+        ...(to === "CONFIRMED" ? { confirmedAt: new Date() } : {}),
+        ...(from === "CONFIRMED" ? { confirmedAt: null } : {}),
+      },
     });
 
     if (changed.count === 0) return false;

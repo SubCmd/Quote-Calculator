@@ -60,6 +60,10 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
 - 계산 결과 금액 분해값을 모두 컬럼으로 저장한다. 총액만 저장하지 않는다.
 - 계산 입력값과 사용한 규칙 버전 식별자를 스냅샷(`Json`)으로 함께 저장한다.
 - `CONFIRMED` 이후 금액·선택 내역 컬럼을 변경하는 쿼리를 작성하지 않는다.
+- **`DELETE FROM quote` 를 작성하지 않는다.** 목록 정리는 `hiddenAt` 으로 한다. (ADR-0035)
+  `hiddenAt` 은 상태가 아니라 표시 여부다. `status` 와 섞지 않고, 숨겨도 `status` 는 그대로다.
+  목록 조회는 `hiddenAt: null` 을 기본 조건으로 둔다. 파기 대상 조회는 `hiddenAt` 을 보지 않는다.
+- `CONFIRMED` 를 떠나는 전이는 같은 쿼리에서 `confirmedAt = null` 을 쓴다. (ADR-0034)
 
 ## 쿼리
 

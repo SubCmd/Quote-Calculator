@@ -6,6 +6,7 @@ import { getQuoteDetail } from "@/services/quote/admin-quotes";
 import { paymentMethodLabel } from "@/lib/payment-method";
 import { statusLabel } from "@/services/quote/transition";
 import { CloneForm } from "./clone-form";
+import { HiddenForm } from "./hidden-form";
 import { StatusForm } from "./status-form";
 import { PaymentMethodForm } from "./payment-method-form";
 
@@ -57,6 +58,14 @@ export default async function AdminQuoteDetailPage({
             </span>
             <span className="quote-id">{quote.publicId}</span>
           </div>
+
+          {quote.hiddenAt && (
+            <p className="notice-warn">
+              목록에서 숨긴 견적입니다 ({quote.hiddenAt.toLocaleString("ko-KR")}
+              ). 고객 링크도 닫혀 있습니다. 아래 &apos;목록 정리&apos; 에서
+              되돌릴 수 있습니다. (ADR-0035)
+            </p>
+          )}
 
           <h2>고객</h2>
           {quote.purgedAt && (
@@ -156,6 +165,7 @@ export default async function AdminQuoteDetailPage({
             publicId={quote.publicId}
             currentLabel={statusLabel(quote.storedStatus)}
             nextStatuses={quote.nextStatuses}
+            leavingConfirmed={quote.storedStatus === "CONFIRMED"}
           />
         </div>
 
@@ -174,6 +184,19 @@ export default async function AdminQuoteDetailPage({
             publicId={quote.publicId}
             selectedMethod={quote.paymentMethod}
             isDisabled={quote.storedStatus !== "REQUESTED"}
+          />
+        </div>
+
+        <div className="card">
+          <h2>목록 정리</h2>
+          <p className="hint">
+            견적은 지우지 않고 목록에서 숨깁니다. 데이터와 변경 기록은 그대로
+            남고, 되돌리면 같은 주소(<code>{quote.publicId}</code>)가 다시
+            열립니다. 숨긴 동안에는 고객도 이 견적을 볼 수 없습니다. (ADR-0035)
+          </p>
+          <HiddenForm
+            publicId={quote.publicId}
+            hidden={quote.hiddenAt !== null}
           />
         </div>
 
