@@ -30,6 +30,7 @@ app/
   quote-form.tsx             선택 위젯 + 견적 요청 폼 (Client Component, 금액 계산 안 함)
                              개인정보 수집 고지 + 필수 동의 체크박스 (ADR-0018)
                              계산 실패(500·네트워크) 시 빈 금액 대신 사유 표시 (ADR-0021)
+                             묶음 안내 + 바꾸기 버튼 (서버가 준 선택을 그대로 넣는다, ADR-0037)
   error.tsx                  고객 경로 렌더링 예외 (digest 만 표기, ADR-0021)
   not-found.tsx              없는 주소 · notFound() (ADR-0021)
   q/[publicId]/page.tsx      저장된 견적 조회 (스냅샷 표시, 재계산하지 않음) + 입금 계좌 (ADR-0019)
@@ -40,6 +41,7 @@ app/
     page.tsx                 가격 규칙 화면 (Server Component)
     error.tsx                관리자 경로 렌더링 예외 (확인할 곳 안내, ADR-0021)
     pricing-admin.tsx        옵션·할인 편집 + 옵션 비활성화 위젯 (Client Component)
+                             묶음 관계 추가·삭제 위젯 (수정 없음, ADR-0038)
     quotes/page.tsx          견적 목록 (상태·기간·고객명 검색 · 연락처 마스킹 · 페이지네이션)
                              결제 방식 열 (ADR-0033) · 숨긴 견적 필터 (ADR-0035)
     quotes/[publicId]/       견적 상세 (연락처 전체 · 열람 로그) + 상태 변경 · 복제 위젯
@@ -59,6 +61,8 @@ src/
       calculate.ts           순수 계산 함수
       constraints.ts         옵션 선택 제약 검증
       options.ts             선택 옵션 금액 합산
+      price-selection.ts     한 선택의 소계·할인·총액 (본 계산과 묶음 비교가 같이 쓴다)
+      bundle.ts              묶음 안내 판정 · 절약액 · 바꿀 선택 (순수 함수, ADR-0037)
       discount.ts            할인 (조건 판정 → 후보 비교 → 1개 선택)
       rounding.ts            10원 단위 버림
       tax.ts                 공급가액·세액 역산 (표기 전용)
@@ -78,7 +82,7 @@ src/
       retention.ts           보존기간 상수·파기 경계 (순수 함수, ADR-0022)
       purge.ts               파기 실행 경유 (dry-run 포함)
     admin/
-      pricing-admin.ts       관리자 조회·미리보기·버전 추가
+      pricing-admin.ts       관리자 조회·미리보기·버전 추가 · 묶음 관계 추가·삭제 (ADR-0038)
       login-throttle.ts      로그인 잠금 판정 (순수 함수. 한도·창 상수, ADR-0020)
       login.ts               실패 기록 조회 → 판정 함수 호출 · 성공/실패 반영
   repositories/
@@ -86,6 +90,7 @@ src/
     product.ts               카탈로그 조회 (금액 제외)
     quote.ts                 견적 저장·조회 · 상태 변경 · 숨기기 (감사 로그 동일 트랜잭션)
     pricing-admin.ts         관리자 조회 + 버전 추가 + 옵션 비활성화 (감사 로그 동일 트랜잭션)
+    option-bundle.ts         묶음 관계 조회·추가·삭제 (감사 로그 동일 트랜잭션, ADR-0038)
     admin-login-attempt.ts   로그인 실패 기록·집계·오래된 행 삭제 (ADR-0020)
     privacy-purge.ts         연락처 비우기 + 검색어 가리기 (감사 로그 동일 트랜잭션, ADR-0022)
     latest-version.ts        버전 중 유효한 1건 고르기
@@ -125,8 +130,10 @@ PricingService.estimate(input, now)
   │  3) 선택 옵션 금액 합산 → 항목 소계 (10원 버림)
   │  4) 조건 충족 할인 후보 비교 → 최대 할인 1개 적용 (10원 버림)
   │  5) 총액 = 소계 - 할인액
+  │  6) 묶음 안내: 구성 옵션을 전부 고른 선택에 더 싼 묶음이 있으면
+  │     바꿀 선택과 절약액을 함께 담는다 (금액에는 넣지 않는다, ADR-0037)
   ↓
-계산 결과 (금액 분해 + 사용한 규칙 버전)
+계산 결과 (금액 분해 + 사용한 규칙 버전 + 묶음 안내)
   ↓
 화면 표시 (계산하지 않고 그대로 출력)
 ```
@@ -134,6 +141,8 @@ PricingService.estimate(input, now)
 - 모든 금액은 부가세 포함이다. 총액에 세액을 더하는 단계가 없다. (ADR-0005)
 - 수량은 입력에 없다. 금액은 선택한 옵션의 합으로만 결정된다. (ADR-0008)
 - 선택이 없으면 총액 0원이 정상 결과다. 위반 목록이 비어 있는 0원과 계산 거부는 다르다.
+- 묶음 안내는 **총액을 바꾸지 않는다.** 바꿀 선택(`nextOptionIds`)을 서버가 정해서 주고,
+  고객이 버튼을 누르면 그 선택으로 다시 계산한다. 화면은 무엇을 빼고 더할지 계산하지 않는다. (ADR-0037)
 - `/api/estimate`는 **읽기 전용**이다. 아무것도 저장하지 않는다.
 - 저장은 `/api/quotes`에서 하고, 저장 시 계산을 **서버에서 다시 수행**한다. 클라이언트가 보낸 금액은 신뢰하지 않는다.
 - 저장에는 **개인정보 수집·이용 동의가 전제**다. `privacyConsent` 가 `true` 가 아닌 요청은 400 으로 거부하고,

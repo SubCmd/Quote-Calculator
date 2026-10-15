@@ -10,6 +10,7 @@ type Product = AdminProductView;
 type OptionRow = Product["options"][number];
 type InactiveOptionRow = Product["inactiveOptions"][number];
 type DiscountRow = Product["discounts"][number];
+type BundleRowView = Product["bundles"][number];
 
 interface Preview {
   before: { totalAmount: number } | null;
@@ -574,7 +575,8 @@ function DescriptionEditor({
   const nextSummary = summary.trim();
   const nextDetail = detail.trim();
   const dirty =
-    nextSummary !== (target.summary ?? "") || nextDetail !== (target.detail ?? "");
+    nextSummary !== (target.summary ?? "") ||
+    nextDetail !== (target.detail ?? "");
   // 지우는 것도 정상 저장이지만 되돌릴 수 없으므로 확인을 받는다.
   const clearing =
     (target.summary !== null && nextSummary === "") ||
@@ -876,6 +878,236 @@ interface OrderItem {
 }
 
 /**
+ * 묶음 관계에 고를 수 있는 옵션. **꺼진 옵션도 담는다.** (ADR-0038)
+ * 옵션을 껐다 켜는 것과 묶음 관계는 독립이라, 되살릴 옵션으로 미리 묶어 둘 수 있어야 한다.
+ */
+interface BundleChoice {
+  key: string;
+  groupCode: string;
+  optionCode: string;
+  label: string;
+}
+
+function bundleChoices(product: Product): BundleChoice[] {
+  return [
+    ...product.options.map((option) => ({
+      key: `${option.groupCode}:${option.code}`,
+      groupCode: option.groupCode,
+      optionCode: option.code,
+      label: `${option.groupName} · ${option.name}`,
+    })),
+    ...product.inactiveOptions.map((option) => ({
+      key: `${option.groupCode}:${option.code}`,
+      groupCode: option.groupCode,
+      optionCode: option.code,
+      label: `${option.groupName} · ${option.name} (꺼짐)`,
+    })),
+  ];
+}
+
+/**
+ * 묶음 관계 한 줄. **수정 버튼이 없다.** (ADR-0038)
+ * 구성 하나를 바꾸는 것은 지우고 다시 넣는 것이고, 구성이 1개뿐인 중간 상태에는 뜻이 없다.
+ */
+function BundleRow({
+  product,
+  bundle,
+}: {
+  product: Product;
+  bundle: BundleRowView;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function remove() {
+    const components = bundle.components.map((c) => c.name).join("\n· ");
+    const summary = `'${bundle.name}' 의 묶음 관계를 지웁니다.\n\n구성 ${bundle.components.length}개\n· ${components}\n\n이 구성을 고른 고객에게 뜨던 안내가 사라집니다. 옵션과 금액은 그대로입니다.\n\n계속할까요?`;
+    if (!window.confirm(summary)) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson("/api/admin/pricing", {
+        kind: "remove-bundle",
+        productId: product.id,
+        groupCode: bundle.groupCode,
+        optionCode: bundle.optionCode,
+      });
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <tr>
+      <td>
+        <span className="row-name">{bundle.name}</span>
+        <span className="row-meta">
+          {bundle.groupCode} · {bundle.optionCode}
+        </span>
+      </td>
+      <td>
+        {bundle.components.map((component) => (
+          <span
+            key={`${component.groupCode}:${component.optionCode}`}
+            className="row-name"
+          >
+            {component.name}
+          </span>
+        ))}
+      </td>
+      <td>
+        {bundle.active ? (
+          <span className="row-meta">
+            구성을 전부 고르고 묶음이 더 싸면 안내됩니다
+          </span>
+        ) : (
+          <span className="row-meta blocked">
+            꺼진 옵션이 있어 안내되지 않습니다. 되살리면 그대로 돌아옵니다
+          </span>
+        )}
+      </td>
+      <td className="actions">
+        <button
+          type="button"
+          className="ghost danger"
+          onClick={remove}
+          disabled={busy}
+        >
+          지우기
+        </button>
+        {error && <p className="form-error">{error}</p>}
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * 묶음 관계 등록. 계산 미리보기가 없다. 관계는 금액에 들어가지 않는다. (ADR-0038)
+ * 묶음 옵션은 구성 목록에서 빠진다. 자기를 자기로 바꾸라는 안내가 되는 조합이다.
+ */
+function NewBundleForm({ product }: { product: Product }) {
+  const router = useRouter();
+  const choices = bundleChoices(product);
+  const [bundleKey, setBundleKey] = useState(choices[0]?.key ?? "");
+  const [componentKeys, setComponentKeys] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const bundle = choices.find((choice) => choice.key === bundleKey);
+  const componentChoices = choices.filter((choice) => choice.key !== bundleKey);
+  const valid = bundle !== undefined && componentKeys.length >= 2;
+
+  function toggle(key: string) {
+    setComponentKeys((keys) =>
+      keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key],
+    );
+  }
+
+  async function save() {
+    if (!bundle) return;
+    const picked = componentKeys.flatMap((key) =>
+      choices.filter((choice) => choice.key === key),
+    );
+    const summary = `'${bundle.label}' 를 묶음으로 등록합니다.\n\n구성 ${picked.length}개\n· ${picked
+      .map((choice) => choice.label)
+      .join(
+        "\n· ",
+      )}\n\n이 구성을 전부 고른 고객에게 묶음이 더 싸면 안내가 뜹니다. 금액은 바뀌지 않습니다.\n\n계속할까요?`;
+    if (!window.confirm(summary)) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      await postJson("/api/admin/pricing", {
+        kind: "add-bundle",
+        productId: product.id,
+        groupCode: bundle.groupCode,
+        optionCode: bundle.optionCode,
+        components: picked.map((choice) => ({
+          groupCode: choice.groupCode,
+          optionCode: choice.optionCode,
+        })),
+      });
+      setComponentKeys([]);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setBusy(false);
+  }
+
+  // 묶음 하나 + 구성 둘이 최소다. 그보다 적으면 만들 수 있는 관계가 없다.
+  if (choices.length < 3) {
+    return (
+      <p className="empty-note">
+        묶음을 만들려면 이 상품에 옵션이 3개 이상 있어야 합니다.
+      </p>
+    );
+  }
+
+  return (
+    <div className="new-bundle">
+      <div className="new-option-field">
+        <label htmlFor={`bundle-option-${product.id}`} className="field-label">
+          묶음 옵션
+        </label>
+        <select
+          id={`bundle-option-${product.id}`}
+          value={bundleKey}
+          onChange={(e) => {
+            setBundleKey(e.target.value);
+            setComponentKeys((keys) =>
+              keys.filter((k) => k !== e.target.value),
+            );
+          }}
+        >
+          {choices.map((choice) => (
+            <option key={choice.key} value={choice.key}>
+              {choice.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <fieldset className="bundle-components">
+        <legend className="field-label">구성 옵션 (2개 이상)</legend>
+        {componentChoices.map((choice) => (
+          <label key={choice.key}>
+            <input
+              type="checkbox"
+              checked={componentKeys.includes(choice.key)}
+              onChange={() => toggle(choice.key)}
+            />
+            {choice.label}
+          </label>
+        ))}
+      </fieldset>
+
+      <button
+        type="button"
+        className="primary"
+        onClick={save}
+        disabled={!valid || busy}
+      >
+        묶음 등록
+      </button>
+
+      {!valid && (
+        <p className="hint">
+          구성 옵션을 2개 이상 고르세요. 1개면 묶음이 아니라 같은 것의 다른
+          이름입니다.
+        </p>
+      )}
+      {error && <p className="form-error">{error}</p>}
+    </div>
+  );
+}
+
+/**
  * 순서 바꾸기 한 묶음. 각 줄에 **보일 자리 번호**를 적는다. (ADR-0032)
  * 저장할 때 보내는 것은 번호가 아니라 **전체 순열**이다. (ADR-0026)
  *
@@ -908,7 +1140,9 @@ function OrderList({
 
   function reset() {
     setPositions(
-      Object.fromEntries(items.map((item, index) => [item.key, `${index + 1}`])),
+      Object.fromEntries(
+        items.map((item, index) => [item.key, `${index + 1}`]),
+      ),
     );
     setError(null);
   }
@@ -968,12 +1202,7 @@ function OrderList({
         </ol>
       )}
       <div className="order-actions">
-        <button
-          type="button"
-          className="ghost"
-          onClick={reset}
-          disabled={busy}
-        >
+        <button type="button" className="ghost" onClick={reset} disabled={busy}>
           되돌리기
         </button>
         <button
@@ -1186,6 +1415,42 @@ export function PricingAdmin({ products }: { products: Product[] }) {
               </tbody>
             </table>
           )}
+        </section>
+
+        <section className="card">
+          <h2>묶음 관계</h2>
+          <p className="hint">
+            구성 옵션을 전부 고른 고객에게 더 싼 묶음이 있다고 안내합니다.
+            금액을 깎지 않고, 바꾸는 것은 고객이 버튼을 눌렀을 때뿐입니다.
+            관계는 금액이 아니라 안내라서 버전도 적용 시작 시각도 없습니다.
+            묶음이 더 비싸면 저장은 되고 안내만 뜨지 않습니다.
+          </p>
+          {product.bundles.length === 0 ? (
+            <p className="empty-note">이 상품에는 묶음 관계가 없습니다.</p>
+          ) : (
+            <table className="rules">
+              <thead>
+                <tr>
+                  <th>묶음 옵션</th>
+                  <th>구성 옵션</th>
+                  <th>상태</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {product.bundles.map((bundle) => (
+                  <BundleRow
+                    key={`${bundle.groupCode}:${bundle.optionCode}`}
+                    product={product}
+                    bundle={bundle}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <h3>묶음 추가</h3>
+          <NewBundleForm key={`new-bundle-${product.id}`} product={product} />
         </section>
       </div>
 

@@ -42,6 +42,18 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
 - 옵션 그룹은 버전 테이블이 아니다(`effectiveFrom` 없음). 그룹 간 선행 관계(`dependsOnGroupId`)는
   행 id로 가리키고 외래 키를 건다. 버전이 바뀌지 않으므로 코드로 우회할 이유가 없다. (ADR-0010)
 
+## 묶음 관계 테이블 (ADR-0037)
+
+- `OptionBundle` + `OptionBundleComponent`. `DiscountRule` + `DiscountCondition` 과 같은 모양이다.
+- **가격 규칙 테이블이 아니다.** `effectiveFrom` 을 두지 않고 수정은 `UPDATE`·`DELETE` 다.
+  안내는 과거 견적의 근거가 아니다. 견적에 남는 것은 고객이 실제로 고른 옵션뿐이다.
+- **금액 컬럼을 두지 않는다.** 묶음 금액은 그 옵션 자신의 정액이다. (ADR-0026)
+  여기에 금액을 넣으면 옵션 금액과 두 곳에 같은 값이 생기고 한쪽만 바뀐다.
+- 옵션은 `(groupCode, optionCode)` 로 가리킨다. 행 id 는 금액 버전마다 바뀐다. (ADR-0009와 같은 이유)
+- `isActive` 를 두지 않는다. 안내를 끄는 것은 행을 지우는 것이다.
+- **옵션을 비활성화할 때 묶음 행을 지우지 않는다.** 재활성화하면 안내가 그대로 돌아와야 한다.
+  (ADR-0025 가 설명 행을 지우지 않는 것과 같다)
+
 ## 설명 문구 테이블 (ADR-0025)
 
 - 설명은 **가격 규칙 테이블이 아니다.** 위 절의 "수정은 새 행 `INSERT`" 가 적용되지 않는다.

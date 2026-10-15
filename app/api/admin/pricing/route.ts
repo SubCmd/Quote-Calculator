@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAdmin } from '@/lib/auth';
 import {
+  addBundleSchema,
   createOptionSchema,
   deactivateDiscountSchema,
   deactivateOptionSchema,
@@ -11,13 +12,16 @@ import {
   reactivateOptionSchema,
   reorderGroupsSchema,
   reorderOptionsSchema,
+  removeBundleSchema,
   reorderProductsSchema,
 } from '@/lib/validation/admin';
 import {
+  addBundle,
   createOption,
   deactivateDiscount,
   deactivateOption,
   reactivateOption,
+  removeBundle,
   reorderGroups,
   reorderOptions,
   reorderProducts,
@@ -215,6 +219,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
     }
     return NextResponse.json({ ok: true });
+  }
+
+  // 묶음 관계는 추가와 삭제뿐이다. 수정 액션을 만들지 않는다. (ADR-0038)
+  if (body?.kind === 'add-bundle') {
+    const parsed = addBundleSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    try {
+      const result = await addBundle(parsed.data, ACTOR);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (error) {
+      // 없는 코드·중복 관계는 관리자가 고칠 수 있는 입력 오류다. 500 으로 숨기지 않는다.
+      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+    }
+  }
+
+  if (body?.kind === 'remove-bundle') {
+    const parsed = removeBundleSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        { status: 400 },
+      );
+    }
+    try {
+      const result = await removeBundle(parsed.data, ACTOR);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (error) {
+      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+    }
   }
 
   return NextResponse.json({ ok: false, error: '대상이 올바르지 않습니다.' }, { status: 400 });

@@ -223,7 +223,9 @@ function RequestForm({
         <p className="hint">항목을 선택하면 견적을 요청할 수 있습니다.</p>
       )}
       {ready && !consent && (
-        <p className="hint">개인정보 수집·이용에 동의하면 요청할 수 있습니다.</p>
+        <p className="hint">
+          개인정보 수집·이용에 동의하면 요청할 수 있습니다.
+        </p>
       )}
     </form>
   );
@@ -483,6 +485,21 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                     {formatKRW(result.tax.vatAmount)}
                   </p>
                 )}
+                {/* 안내는 금액을 바꾸지 않는다. 바꾸는 것은 고객이 누를 때뿐이다. (ADR-0037) */}
+                {result.bundleSuggestions.map((suggestion) => (
+                  <div className="bundle-suggestion" key={suggestion.optionId}>
+                    <p>
+                      <strong>{suggestion.name}</strong> 로 바꾸면{" "}
+                      {formatKRW(suggestion.savingAmount)} 저렴합니다.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setOptionIds(suggestion.nextOptionIds)}
+                    >
+                      묶음으로 바꾸기
+                    </button>
+                  </div>
+                ))}
                 {result.items[0]!.appliedOptions.length === 0 && (
                   <p className="empty-note">
                     옵션을 선택하면 금액이 올라갑니다.

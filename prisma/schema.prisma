@@ -42,6 +42,7 @@ model Product {
 
   optionGroups OptionGroup[]
   discounts    DiscountRule[]
+  bundles      OptionBundle[]
   quoteItems   QuoteItem[]
 
   @@map("product")
@@ -127,6 +128,48 @@ model OptionDescription {
   @@map("option_description")
 }
 
+/// 묶음 옵션과 그 구성 옵션의 관계. 금액 계산에 들어가지 않는다. (ADR-0037)
+///
+/// 구성 옵션을 전부 고른 고객에게 더 싼 묶음이 있다고 안내하기 위한 데이터다.
+/// 금액 컬럼이 없다. 묶음 금액은 그 옵션 자신의 정액이다. (ADR-0026)
+/// 가격 규칙 테이블이 아니므로 `effectiveFrom` 이 없고 수정은 UPDATE·DELETE 다. (ADR-0025 와 같은 선)
+/// 안내는 과거 견적의 근거가 아니다. 견적에 남는 것은 고객이 실제로 고른 옵션뿐이다.
+model OptionBundle {
+  id        String @id @default(cuid())
+  productId String @map("product_id")
+  /// 구성 옵션 전부를 대체하는 묶음 옵션. 옵션 행 id 가 아니라 코드로 가리킨다 (ADR-0009 와 같은 이유)
+  groupCode  String @map("group_code")
+  optionCode String @map("option_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by")
+
+  product    Product                 @relation(fields: [productId], references: [id])
+  components OptionBundleComponent[]
+
+  @@unique([productId, groupCode, optionCode])
+  @@map("option_bundle")
+}
+
+/// 묶음의 구성 옵션. 여기 적힌 옵션을 **전부** 고른 선택에만 안내한다.
+/// 구성이 한 행도 없는 묶음은 안내 대상이 아니다. 조건이 비면 항상 후보가 되는
+/// `DiscountCondition` 과 반대다. 대체할 것이 없는 묶음은 안내할 내용이 없다.
+model OptionBundleComponent {
+  id         String @id @default(cuid())
+  bundleId   String @map("bundle_id")
+  groupCode  String @map("group_code")
+  optionCode String @map("option_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  bundle OptionBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, groupCode, optionCode])
+  @@map("option_bundle_component")
+}
+
 model DiscountRule {
   id        String       @id @default(cuid())
   productId String       @map("product_id")
@@ -200,6 +243,10 @@ enum AuditAction {
   QUOTE_HIDDEN
   /// 숨긴 견적을 되돌린 기록 (ADR-0035)
   QUOTE_RESTORED
+  /// 묶음 관계 등록. 묶음 옵션과 구성 옵션 코드를 afterValue 에 담는다 (ADR-0038)
+  BUNDLE_ADDED
+  /// 묶음 관계 삭제. 지운 구성까지 beforeValue 에 담는다. 수정이 없으므로 기록도 이 둘뿐이다 (ADR-0038)
+  BUNDLE_REMOVED
 }
 
 /// 관리자 로그인 **실패** 기록. 시도 제한 판정에만 쓴다. 성공은 담지 않는다. (ADR-0020)

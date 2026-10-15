@@ -132,6 +132,33 @@ export const reorderOptionsSchema = z.object({
   optionCodes: orderedCodes,
 });
 
+/**
+ * 묶음 관계 등록. 적용 시작 시각이 없다. 관계는 금액이 아니다. (ADR-0038)
+ * 구성이 2개 이상인지는 여기서도 보지만, 묶음 옵션이 구성에 들어갔는지와
+ * 그 코드가 실제로 있는지는 상품을 읽어야 알므로 Repository 가 판정한다.
+ */
+export const addBundleSchema = z.object({
+  productId: z.string().min(1),
+  groupCode: z.string().min(1),
+  optionCode: z.string().min(1),
+  components: z
+    .array(
+      z.object({
+        groupCode: z.string().min(1),
+        optionCode: z.string().min(1),
+      }),
+    )
+    .min(2, { message: "구성 옵션을 2개 이상 고르세요." })
+    .max(20),
+});
+
+/** 묶음 관계 삭제. 수정이 없으므로 대상만 받는다. (ADR-0038) */
+export const removeBundleSchema = z.object({
+  productId: z.string().min(1),
+  groupCode: z.string().min(1),
+  optionCode: z.string().min(1),
+});
+
 export const previewSchema = z.object({
   productId: z.string().min(1),
   optionIds: z.array(z.string().min(1)).max(50),

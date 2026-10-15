@@ -22,6 +22,12 @@ import {
   type ReactivateOptionResult,
 } from "@/repositories/pricing-admin";
 import {
+  addProductBundle,
+  removeProductBundle,
+  type AddBundleInput,
+  type BundleTarget,
+} from "@/repositories/option-bundle";
+import {
   reorderGroups as reorderGroupsRow,
   reorderOptions as reorderOptionsRow,
   reorderProducts as reorderProductsRow,
@@ -167,7 +173,11 @@ export interface SaveDiscountVersion {
   effectiveFrom: Date | null;
 }
 
-export type { CreateOptionInput, DeactivateOptionResult, ReactivateOptionResult };
+export type {
+  CreateOptionInput,
+  DeactivateOptionResult,
+  ReactivateOptionResult,
+};
 
 /**
  * 옵션 비활성화. 삭제하지 않는다. (`.claude/rules/database.md`)
@@ -256,4 +266,25 @@ export async function saveOptionDescription(
   actor: string,
 ): Promise<void> {
   await saveOptionDescriptionRow(input, actor);
+}
+
+export type { AddBundleInput, BundleTarget };
+
+/**
+ * 묶음 관계 등록. 금액이 아니라 안내라서 미리보기도, 적용 시작 시각도 없다. (ADR-0038)
+ * `now` 를 받지 않는 것이 설명·순서 작업과 같고 가격 버전 작업과 다른 점이다.
+ */
+export async function addBundle(
+  input: AddBundleInput,
+  actor: string,
+): Promise<{ bundleName: string }> {
+  return addProductBundle(input, actor);
+}
+
+/** 묶음 관계 삭제. 수정이 없으므로 구성 변경도 이 삭제를 거친다. (ADR-0038) */
+export async function removeBundle(
+  input: BundleTarget,
+  actor: string,
+): Promise<{ bundleName: string }> {
+  return removeProductBundle(input, actor);
 }

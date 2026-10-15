@@ -53,6 +53,10 @@ const oneshot: RuleSet = {
   ],
   // 1회성 컨설팅에는 할인이 없다. 묶음은 조건이 아니라 V1 옵션의 정액이다. (ADR-0026)
   discounts: [],
+  // V1 은 내신과 생활기록부를 합친 옵션이다. 안내만 하고 금액은 바꾸지 않는다. (ADR-0037)
+  bundles: [
+    { optionId: "opt-v1", componentOptionIds: ["opt-naesin", "opt-record"] },
+  ],
 };
 
 const course: RuleSet = {
@@ -140,6 +144,7 @@ const course: RuleSet = {
     },
   ],
   discounts: [],
+  bundles: [],
 };
 
 /** 단계마다 금액이 다르다. 제목은 이름 안에 있다. (ADR-0028) */
@@ -178,6 +183,7 @@ const allstoryG2: RuleSet = {
       versionId: "v-all-stages",
     },
   ],
+  bundles: [],
 };
 
 /**
@@ -219,6 +225,7 @@ const allstoryG3: RuleSet = {
       versionId: "v-g3-all-stages",
     },
   ],
+  bundles: [],
 };
 
 /** 필수 그룹과 10원 단위 버림을 검증하기 위한 가상 상품. 실제 상품에는 둘 다 없다. */
@@ -254,6 +261,7 @@ const edgeCase: RuleSet = {
       versionId: "v-any",
     },
   ],
+  bundles: [],
 };
 
 function run(ruleSet: RuleSet, optionIds: string[]) {
@@ -317,6 +325,71 @@ describe("calculate - 1회성 컨설팅 (docs/pricing-rules.md 9-1, 9-2)", () =>
       "v-record",
     ]);
     expect(result.calculatedAt).toBe(NOW);
+  });
+});
+
+describe("calculate - 묶음 안내 (docs/pricing-rules.md 10절, ADR-0037)", () => {
+  it("구성 옵션을 전부 고르면 안내가 붙지만 총액은 그대로다", () => {
+    const result = ok(oneshot, ["opt-naesin", "opt-record"]);
+
+    expect(result.totalAmount).toBe(208_000);
+    expect(result.bundleSuggestions).toEqual([
+      {
+        optionId: "opt-v1",
+        name: "내신 + 생활기록부 분석 (60~70분)",
+        nextOptionIds: ["opt-v1"],
+        savingAmount: 9000,
+      },
+    ]);
+  });
+
+  it("안내한 선택으로 다시 계산하면 안내한 절약액만큼 줄어든다", () => {
+    const before = ok(oneshot, ["opt-naesin", "opt-record"]);
+    const suggestion = before.bundleSuggestions[0]!;
+    const after = ok(oneshot, suggestion.nextOptionIds);
+
+    expect(before.totalAmount - after.totalAmount).toBe(
+      suggestion.savingAmount,
+    );
+    expect(after.totalAmount).toBe(199_000);
+  });
+
+  it("안내한 선택은 묶음과 무관한 선택을 남긴다", () => {
+    const result = ok(oneshot, ["opt-naesin", "opt-mock", "opt-record"]);
+
+    expect(result.totalAmount).toBe(267_000);
+    expect(result.bundleSuggestions[0]?.nextOptionIds).toEqual([
+      "opt-mock",
+      "opt-v1",
+    ]);
+    expect(result.bundleSuggestions[0]?.savingAmount).toBe(9000);
+  });
+
+  it("구성 옵션 중 하나라도 빠지면 안내하지 않는다", () => {
+    expect(ok(oneshot, ["opt-naesin"]).bundleSuggestions).toEqual([]);
+    expect(ok(oneshot, ["opt-record"]).bundleSuggestions).toEqual([]);
+    expect(ok(oneshot, ["opt-naesin", "opt-mock"]).bundleSuggestions).toEqual(
+      [],
+    );
+  });
+
+  it("이미 묶음을 고른 선택에는 안내하지 않는다", () => {
+    expect(ok(oneshot, ["opt-v1"]).bundleSuggestions).toEqual([]);
+    expect(
+      ok(oneshot, ["opt-v1", "opt-naesin", "opt-record"]).bundleSuggestions,
+    ).toEqual([]);
+  });
+
+  it("묶음 관계가 없는 상품에는 안내가 없다", () => {
+    expect(ok(course, ["opt-s6", "opt-kakao"]).bundleSuggestions).toEqual([]);
+    expect(ok(allstoryG2, STAGE_IDS).bundleSuggestions).toEqual([]);
+  });
+
+  it("안내는 견적 스냅샷 근거에 들어가지 않는다", () => {
+    const result = ok(oneshot, ["opt-naesin", "opt-record"]);
+
+    expect(result.bundleSuggestions).toHaveLength(1);
+    expect(result.pricingRuleVersionIds).toEqual(["v-naesin", "v-record"]);
   });
 });
 

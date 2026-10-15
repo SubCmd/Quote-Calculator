@@ -58,6 +58,19 @@ export interface AdminDiscountRow {
   versionCount: number;
 }
 
+/**
+ * 묶음 관계 한 건. 금액을 담지 않는다. 관계는 계산에 들어가지 않는다. (ADR-0037)
+ * 꺼진 옵션이 섞여 있을 수 있어서(ADR-0038) 지금 안내되는 관계인지 함께 내려보낸다.
+ */
+export interface AdminBundleRow {
+  groupCode: string;
+  optionCode: string;
+  name: string;
+  components: { groupCode: string; optionCode: string; name: string }[];
+  /** 묶음 옵션과 구성 옵션이 전부 활성인가. 아니면 안내가 뜨지 않는다 */
+  active: boolean;
+}
+
 export interface AdminProductView {
   id: string;
   code: string;
@@ -66,6 +79,7 @@ export interface AdminProductView {
   options: AdminOptionRow[];
   inactiveOptions: AdminInactiveOptionRow[];
   discounts: AdminDiscountRow[];
+  bundles: AdminBundleRow[];
 }
 
 /**
@@ -100,6 +114,15 @@ export async function findPricingAdminView(
         where: { effectiveFrom: { lte: now } },
         orderBy: { effectiveFrom: "desc" },
         include: { conditions: { orderBy: { groupCode: "asc" } } },
+      },
+      // 묶음 관계는 버전도 활성 플래그도 없다. 있는 그대로 전부 읽는다. (ADR-0038)
+      bundles: {
+        orderBy: [{ groupCode: "asc" }, { optionCode: "asc" }],
+        include: {
+          components: {
+            orderBy: [{ groupCode: "asc" }, { optionCode: "asc" }],
+          },
+        },
       },
     },
   });
@@ -229,6 +252,27 @@ export async function findPricingAdminView(
           effectiveFrom: discount.effectiveFrom,
           versionCount: countByDiscountCode.get(discount.code) ?? 1,
         })),
+      bundles: product.bundles.map((bundle) => {
+        const keys = [
+          optionKey(bundle.groupCode, bundle.optionCode),
+          ...bundle.components.map((c) => optionKey(c.groupCode, c.optionCode)),
+        ];
+        return {
+          groupCode: bundle.groupCode,
+          optionCode: bundle.optionCode,
+          name:
+            nameByOptionKey.get(keys[0]!) ??
+            `${bundle.groupCode}/${bundle.optionCode}`,
+          components: bundle.components.map((c) => ({
+            groupCode: c.groupCode,
+            optionCode: c.optionCode,
+            name:
+              nameByOptionKey.get(optionKey(c.groupCode, c.optionCode)) ??
+              `${c.groupCode}/${c.optionCode}`,
+          })),
+          active: keys.every((key) => activeOptionKeys.has(key)),
+        };
+      }),
     };
   });
 }
@@ -278,7 +322,10 @@ export async function addOptionVersion(
       isActive: true,
     },
     include: {
-      options: { where: { isActive: true }, orderBy: { effectiveFrom: "desc" } },
+      options: {
+        where: { isActive: true },
+        orderBy: { effectiveFrom: "desc" },
+      },
     },
   });
   if (!group)
@@ -289,7 +336,11 @@ export async function addOptionVersion(
 
   // (groupId, code, effectiveFrom) 가 유일하다. 적용 시작 시각 입력은 분 단위라
   // 같은 분에 두 번 저장하는 일이 실제로 생긴다. 제약 위반을 500 으로 흘리지 않는다.
-  await assertNoSameInstantOption(group.id, input.optionCode, input.effectiveFrom);
+  await assertNoSameInstantOption(
+    group.id,
+    input.optionCode,
+    input.effectiveFrom,
+  );
 
   const changes: string[] = [];
   if (current.name !== input.name)
@@ -617,7 +668,10 @@ export async function deactivateOption(
         targetType: "ProductOption",
         targetId: `${input.groupCode}:${input.optionCode}`,
         beforeValue: { isActive: true },
-        afterValue: { isActive: false, deactivatedDiscountCodes: discountCodes },
+        afterValue: {
+          isActive: false,
+          deactivatedDiscountCodes: discountCodes,
+        },
       },
     }),
   ]);
@@ -802,7 +856,11 @@ export async function saveGroupDescription(
   actor: string,
 ): Promise<void> {
   const group = await prisma.optionGroup.findFirst({
-    where: { productId: input.productId, code: input.groupCode, isActive: true },
+    where: {
+      productId: input.productId,
+      code: input.groupCode,
+      isActive: true,
+    },
     select: { id: true, name: true, summary: true, detail: true },
   });
   if (!group)
@@ -838,7 +896,11 @@ export async function saveOptionDescription(
   actor: string,
 ): Promise<void> {
   const group = await prisma.optionGroup.findFirst({
-    where: { productId: input.productId, code: input.groupCode, isActive: true },
+    where: {
+      productId: input.productId,
+      code: input.groupCode,
+      isActive: true,
+    },
     select: {
       id: true,
       options: {

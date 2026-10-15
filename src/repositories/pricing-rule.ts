@@ -24,6 +24,7 @@ export async function findRuleSet(
         orderBy: { effectiveFrom: "desc" },
         include: { conditions: true },
       },
+      bundles: { include: { components: true } },
       optionGroups: {
         where: { isActive: true },
         orderBy: { sortOrder: "asc" },
@@ -81,6 +82,25 @@ export async function findRuleSet(
     versionId: d.id,
   }));
 
+  /**
+   * 묶음 안내도 옵션 코드로 저장되어 있다. 지금 유효한 버전의 id 로 해석한다. (ADR-0037)
+   *
+   * 할인과 달리 **해석되지 않으면 조용히 건너뛴다.** 묶음 옵션이나 구성 옵션이 비활성이면
+   * 안내가 사라질 뿐이고 금액은 고객이 고른 그대로다. 여기서 던지면 안내 데이터 한 줄
+   * 때문에 그 상품의 계산이 통째로 실패한다. 할인은 조건을 무시하면 금액이 틀려서 던진다.
+   */
+  const bundles = product.bundles.flatMap((b) => {
+    const optionId = optionIdByCode.get(conditionKey(b.groupCode, b.optionCode));
+    if (!optionId) return [];
+
+    const componentOptionIds = b.components.map((c) =>
+      optionIdByCode.get(conditionKey(c.groupCode, c.optionCode)),
+    );
+    if (componentOptionIds.some((id) => id === undefined)) return [];
+
+    return [{ optionId, componentOptionIds: componentOptionIds as string[] }];
+  });
+
   return {
     product: { id: product.id, name: product.name },
     groups: product.optionGroups.map((g) => ({
@@ -92,5 +112,6 @@ export async function findRuleSet(
     })),
     options,
     discounts,
+    bundles,
   };
 }

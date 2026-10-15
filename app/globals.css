@@ -507,6 +507,45 @@ fieldset.locked .option-row input {
   margin: 0.75rem 0 0;
 }
 
+/* 묶음 안내. 금액이 아니라 안내라서 총액 상자와 다른 색을 쓴다 (ADR-0037) */
+.bundle-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px dashed var(--brand-border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.bundle-suggestion p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  /* 금액과 단위가 갈라져 "9,000 / 원" 으로 끊기지 않게 한다 */
+  word-break: keep-all;
+}
+
+.bundle-suggestion button {
+  flex: none;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--brand-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--brand-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bundle-suggestion button:hover {
+  background: var(--brand-soft);
+}
+
 .violations {
   list-style: none;
   border: 1px solid #f1c9c4;
@@ -921,6 +960,35 @@ fieldset.locked .option-row input {
 .new-option .form-error {
   flex-basis: 100%;
   margin-top: 0;
+}
+
+/* 묶음 등록. 구성 옵션이 여러 개라 한 줄에 늘어놓지 않고 세로로 쌓는다. (ADR-0038) */
+.new-bundle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.new-bundle .hint,
+.new-bundle .form-error {
+  margin: 0;
+}
+
+.bundle-components {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.bundle-components label {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 0.875rem;
 }
 
 .num-input.narrow {

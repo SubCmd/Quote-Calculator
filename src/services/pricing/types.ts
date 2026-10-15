@@ -42,12 +42,25 @@ export interface DiscountRule {
   versionId: string;
 }
 
+/**
+ * 묶음 옵션과 그 구성 옵션. 금액에 들어가지 않는다. (ADR-0037)
+ * Repository 가 옵션 코드를 현재 버전의 옵션 id 로 해석해서 채우고,
+ * 해석되지 않는 묶음은 걸러낸다. 할인 조건과 달리 예외를 던지지 않는다.
+ */
+export interface BundleRule {
+  /** 구성 옵션 전부를 대체하는 묶음 옵션 */
+  optionId: string;
+  /** 전부 선택했을 때 안내 대상이 되는 옵션. 비어 있으면 안내하지 않는다 */
+  componentOptionIds: string[];
+}
+
 /** 계산에 필요한 가격 규칙 모음. Repository 가 조회해서 넘긴다. */
 export interface RuleSet {
   product: ProductRule;
   groups: OptionGroupRule[];
   options: OptionRule[];
   discounts: DiscountRule[];
+  bundles: BundleRule[];
 }
 
 export interface EstimateInput {
@@ -93,6 +106,24 @@ export interface DiscountCandidate {
   priority: number;
 }
 
+/**
+ * 더 싼 묶음이 있다는 안내. **금액에 들어가지 않는다.** (ADR-0037)
+ * 견적 스냅샷에도 담지 않는다. 견적에 남는 것은 고객이 실제로 고른 옵션뿐이다.
+ */
+export interface BundleSuggestion {
+  /** 바꿔 담을 묶음 옵션 */
+  optionId: string;
+  /** 그 옵션의 현재 버전 이름 */
+  name: string;
+  /**
+   * 바꾼 뒤의 선택 **전체**. 화면은 이 배열을 그대로 넣는다.
+   * 무엇을 빼고 더할지 화면이 조립하면 안내한 절약액과 결과가 어긋날 수 있다.
+   */
+  nextOptionIds: string[];
+  /** 지금 총액 − 바꾼 뒤 총액. 항상 양수다 */
+  savingAmount: number;
+}
+
 export interface CalculationSuccess {
   ok: true;
   items: CalculatedItem[];
@@ -102,6 +133,8 @@ export interface CalculationSuccess {
   discountCandidates: DiscountCandidate[];
   /** 부가세 포함 최종 금액 */
   totalAmount: number;
+  /** 더 싼 묶음 안내. 금액에 들어가지 않는다 (ADR-0037) */
+  bundleSuggestions: BundleSuggestion[];
   pricingRuleVersionIds: string[];
   calculatedAt: Date;
 }

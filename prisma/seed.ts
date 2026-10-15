@@ -48,11 +48,22 @@ type DiscountSeed = {
   conditions: { groupCode: string; optionCode: string }[];
 };
 
+/**
+ * 묶음 옵션과 그 구성 옵션. 금액에 들어가지 않고 안내만 한다. (ADR-0037)
+ * 구성 옵션을 전부 고른 고객에게 더 싼 묶음을 알려 주는 데만 쓴다.
+ */
+type BundleSeed = {
+  groupCode: string;
+  optionCode: string;
+  components: { groupCode: string; optionCode: string }[];
+};
+
 type ProductSeed = {
   code: string;
   name: string;
   groups: GroupSeed[];
   discounts: DiscountSeed[];
+  bundles?: BundleSeed[];
 };
 
 /** 3회차·6회차가 같은 안내문을 쓴다. 받는 상담 내용이 같고 횟수만 다르다. */
@@ -199,6 +210,17 @@ const PRODUCTS: ProductSeed[] = [
     ],
     // 1회성 컨설팅에는 할인이 없다. 묶음은 할인 조건이 아니라 V1 옵션의 정액이다. (ADR-0026)
     discounts: [],
+    // V1 은 내신과 생활기록부를 합친 상담이다. 둘을 따로 고른 고객에게 안내한다. (ADR-0037)
+    bundles: [
+      {
+        groupCode: "ANALYSIS",
+        optionCode: "V1",
+        components: [
+          { groupCode: "ANALYSIS", optionCode: "NAESIN" },
+          { groupCode: "ANALYSIS", optionCode: "RECORD" },
+        ],
+      },
+    ],
   },
   {
     code: "COURSE",
@@ -417,6 +439,17 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
       },
     });
   }
+
+  for (const bundle of seed.bundles ?? []) {
+    await prisma.optionBundle.create({
+      data: {
+        productId: product.id,
+        groupCode: bundle.groupCode,
+        optionCode: bundle.optionCode,
+        components: { create: bundle.components },
+      },
+    });
+  }
 }
 
 async function main() {
@@ -427,6 +460,8 @@ async function main() {
   await prisma.quote.deleteMany();
   await prisma.discountCondition.deleteMany();
   await prisma.discountRule.deleteMany();
+  await prisma.optionBundleComponent.deleteMany();
+  await prisma.optionBundle.deleteMany();
   await prisma.productOption.deleteMany();
   await prisma.optionDescription.deleteMany();
   await prisma.optionGroup.deleteMany();

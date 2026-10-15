@@ -1,7 +1,6 @@
+import { findBundleSuggestions } from "./bundle";
 import { validateSelection } from "./constraints";
-import { resolveDiscount } from "./discount";
-import { calculateOptionAmount } from "./options";
-import { floorToUnit } from "./rounding";
+import { priceSelection } from "./price-selection";
 import type { CalculationResult, EstimateInput, RuleSet } from "./types";
 
 /**
@@ -21,41 +20,36 @@ export function calculate(
     return { ok: false, violations };
   }
 
-  const selectedOptions = ruleSet.options.filter((o) =>
-    input.optionIds.includes(o.id),
-  );
-
-  const { optionAmount, appliedOptions } =
-    calculateOptionAmount(selectedOptions);
-  const subtotal = floorToUnit(optionAmount);
-
-  const { discountAmount, appliedDiscount, candidates } = resolveDiscount(
-    ruleSet.discounts,
-    subtotal,
-    input.optionIds,
-  );
+  const priced = priceSelection(ruleSet, input.optionIds);
 
   return {
     ok: true,
     items: [
       {
         productId: ruleSet.product.id,
-        optionAmount,
-        subtotal,
-        appliedOptions,
+        optionAmount: priced.optionAmount,
+        subtotal: priced.subtotal,
+        appliedOptions: priced.appliedOptions,
       },
     ],
-    subtotal,
-    discountAmount,
-    appliedDiscount,
-    discountCandidates: candidates,
-    totalAmount: subtotal - discountAmount,
+    subtotal: priced.subtotal,
+    discountAmount: priced.discountAmount,
+    appliedDiscount: priced.appliedDiscount,
+    discountCandidates: priced.discountCandidates,
+    totalAmount: priced.totalAmount,
+    // 안내는 금액 뒤에 붙는다. 총액에 들어가지 않는다. (ADR-0037)
+    bundleSuggestions: findBundleSuggestions(
+      ruleSet,
+      input.optionIds,
+      priced.totalAmount,
+    ),
     pricingRuleVersionIds: [
-      ...selectedOptions.map((o) => o.versionId),
-      ...(appliedDiscount
+      ...priced.selectedOptions.map((o) => o.versionId),
+      ...(priced.appliedDiscount
         ? [
-            ruleSet.discounts.find((d) => d.id === appliedDiscount.discountId)!
-              .versionId,
+            ruleSet.discounts.find(
+              (d) => d.id === priced.appliedDiscount!.discountId,
+            )!.versionId,
           ]
         : []),
     ],

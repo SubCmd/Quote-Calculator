@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'BUNDLE_ADDED';
+ALTER TYPE "AuditAction" ADD VALUE 'BUNDLE_REMOVED';
