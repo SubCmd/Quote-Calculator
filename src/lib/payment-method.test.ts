@@ -1,9 +1,6 @@
 import { PaymentMethod } from "@prisma/client";
 import { describe, expect, it } from "vitest";
-import {
-  PAYMENT_METHOD_CHOICES,
-  paymentMethodLabel,
-} from "./payment-method";
+import { PAYMENT_METHOD_CHOICES, paymentMethodLabel } from "./payment-method";
 
 describe("결제 방식 목록", () => {
   it("모든 PaymentMethod 값에 라벨이 있다", () => {

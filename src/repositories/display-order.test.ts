@@ -22,9 +22,9 @@ describe("planReorder", () => {
   });
 
   it("두 항목만 자리를 바꿔도 changed 가 true 다", () => {
-    expect(planReorder(CURRENT, ["MOCK", "NAESIN", "RECORD", "V1"]).changed).toBe(
-      true,
-    );
+    expect(
+      planReorder(CURRENT, ["MOCK", "NAESIN", "RECORD", "V1"]).changed,
+    ).toBe(true);
   });
 
   it("항목이 하나뿐이어도 동작한다", () => {

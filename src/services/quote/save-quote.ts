@@ -5,8 +5,7 @@ import { expiresAtFrom } from "./expiry";
 import type { QuoteSnapshot, SaveQuoteInput } from "./types";
 
 export type SaveQuoteResult =
-  | { ok: true; publicId: string }
-  | { ok: false; violations: Violation[] };
+  { ok: true; publicId: string } | { ok: false; violations: Violation[] };
 
 /**
  * 견적 저장. 금액은 **클라이언트가 보낸 값을 쓰지 않고 여기서 다시 계산한다.** (ADR-0003)

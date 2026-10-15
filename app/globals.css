@@ -1375,6 +1375,20 @@ fieldset.locked .option-row input {
 .method-choices .method-label {
   font-weight: 700;
 }
+/* 방식별 지불 금액. 고르는 순간 읽어야 하는 숫자라서 라벨보다 크다. (ADR-0039) */
+.method-choices .method-amount {
+  display: flex;
+  gap: 0.375rem;
+  align-items: baseline;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.method-choices .method-amount small {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
 .method-choices .method-desc {
   font-size: 0.75rem;
   font-weight: 500;
@@ -1601,6 +1615,51 @@ a.primary {
 }
 .card:has(.quote-list) {
   overflow-x: auto;
+}
+
+/* ── 목록 일괄 작업 (ADR-0041) ─────────────────────────────
+   줄마다 체크박스로 고르고 하단 버튼으로 처리한다. 전체 선택 입력은 두지 않는다. */
+
+.quote-list .pick {
+  width: 2.5rem;
+  text-align: center;
+}
+.quote-list .pick input {
+  width: 1.125rem;
+  height: 1.125rem;
+  cursor: pointer;
+  accent-color: var(--brand-ink);
+}
+/* 고른 줄이 한눈에 보여야 한다. 건수만으로는 무엇을 골랐는지 읽지 못한다. */
+.quote-list tr.picked {
+  background: var(--brand-soft, #f2f6ff);
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--line);
+}
+.bulk-count {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+/* 사유·결과는 버튼 아래 줄로 내린다. 버튼 옆에 끼면 폭이 밀린다. */
+.bulk-bar .hint,
+.bulk-bar .form-error {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .pager {

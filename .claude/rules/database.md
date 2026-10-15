@@ -15,7 +15,8 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
 - 금액에 `Float`/`Decimal`을 쓰지 않는다. (ADR-0001)
 - 요율 `Decimal`은 DB 저장 형식일 뿐이다. Repository가 읽는 즉시 **만분율 정수(bp)** 로 바꿔 Service에 넘긴다.
   `0.1500` → `1500`. Service 쪽으로 `Decimal`이나 소수를 흘려보내지 않는다.
-- 금액 컬럼은 모두 **부가세 포함 금액**이다. 세전 금액 컬럼을 만들지 않는다. (ADR-0005)
+- 금액 컬럼은 모두 **현금가**다. 세전 금액 컬럼도 카드 금액 컬럼도 만들지 않는다. (ADR-0039)
+  카드 금액은 현금가에서 언제든 다시 구하므로 저장하지 않는다. 두 곳에 두면 한쪽만 바뀐다.
 - 상태·종류 값을 자유 문자열로 두지 않는다. `enum`으로 선언한다.
 
 ## 네이밍
@@ -72,9 +73,15 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
 - 계산 결과 금액 분해값을 모두 컬럼으로 저장한다. 총액만 저장하지 않는다.
 - 계산 입력값과 사용한 규칙 버전 식별자를 스냅샷(`Json`)으로 함께 저장한다.
 - `CONFIRMED` 이후 금액·선택 내역 컬럼을 변경하는 쿼리를 작성하지 않는다.
-- **`DELETE FROM quote` 를 작성하지 않는다.** 목록 정리는 `hiddenAt` 으로 한다. (ADR-0035)
-  `hiddenAt` 은 상태가 아니라 표시 여부다. `status` 와 섞지 않고, 숨겨도 `status` 는 그대로다.
-  목록 조회는 `hiddenAt: null` 을 기본 조건으로 둔다. 파기 대상 조회는 `hiddenAt` 을 보지 않는다.
+- 목록 정리는 `hiddenAt` 으로 한다. (ADR-0035) `hiddenAt` 은 상태가 아니라 표시 여부다.
+  `status` 와 섞지 않고, 숨겨도 `status` 는 그대로다. 목록 조회는 `hiddenAt: null` 을 기본
+  조건으로 둔다. 파기 대상 조회는 `hiddenAt` 을 보지 않는다.
+- **행 삭제는 `REQUESTED` · `CANCELED` 만이다.** (ADR-0041) `CONFIRMED` 를 지우는 쿼리를
+  작성하지 않는다. 확정 건은 `confirmedAt` 기준 5년 보존 의무가 있다. (ADR-0022)
+  `where` 에 상태 조건을 반드시 넣고, 그 판정을 화면 비활성에 맡기지 않는다.
+- 삭제와 `QUOTE_DELETED` 감사 로그는 **같은 트랜잭션**이다. 로그에 연락처를 담지 않는다.
+  `publicId` 와 상품·금액만 적는다. 파기한 데이터를 로그로 되살리지 않는다.
+- 소프트 삭제 컬럼(`deletedAt`)을 추가하지 않는다. `hiddenAt` 과 뜻이 겹친다.
 - `CONFIRMED` 를 떠나는 전이는 같은 쿼리에서 `confirmedAt = null` 을 쓴다. (ADR-0034)
 
 ## 쿼리

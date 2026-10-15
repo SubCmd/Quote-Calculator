@@ -36,6 +36,23 @@ export function statusLabel(status: QuoteStatus): string {
   return LABEL[status];
 }
 
+/**
+ * 행을 지울 수 있는 상태. (ADR-0041)
+ *
+ * 확정 건은 `confirmedAt` 기준 5년 보존 의무가 있다. (ADR-0022) 요청 접수에서 멈춘 건과
+ * 취소된 건은 거래가 성립하지 않았으므로 보존 대상이 아니다.
+ *
+ * `EXPIRED` 는 저장 상태가 아니다. (ADR-0012) 판정은 **저장된 상태**로 한다.
+ * 유효기간이 지난 요청 접수 건은 화면에 `EXPIRED` 로 보이지만 지울 수 있다.
+ *
+ * `DRAFT` 는 지금 저장되지 않는 상태라서 목록에 나타나지 않는다. 생기면 여기를 다시 본다.
+ */
+export const DELETABLE_STATUSES: QuoteStatus[] = ["REQUESTED", "CANCELED"];
+
+export function isDeletableStatus(status: QuoteStatus): boolean {
+  return DELETABLE_STATUSES.includes(status);
+}
+
 /** 거부 사유. 화면에 그대로 보여 줄 수 있어야 한다. */
 export function transitionError(
   from: QuoteStatus,

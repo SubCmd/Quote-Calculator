@@ -55,7 +55,11 @@ export function HiddenForm({
         disabled={pending}
         onClick={toggle}
       >
-        {pending ? "처리 중…" : hidden ? "목록으로 되돌리기" : "목록에서 숨기기"}
+        {pending
+          ? "처리 중…"
+          : hidden
+            ? "목록으로 되돌리기"
+            : "목록에서 숨기기"}
       </button>
       {error && <p className="form-error">{error}</p>}
     </div>

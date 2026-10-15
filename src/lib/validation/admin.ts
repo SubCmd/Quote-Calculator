@@ -198,3 +198,22 @@ export const paymentMethodSchema = z.object({
  * 되돌리는 요청과 같은 모양이어야 하므로 `hidden` 한 칸이다.
  */
 export const quoteHiddenSchema = z.object({ hidden: z.boolean() });
+
+/**
+ * 목록에서 고른 건을 한꺼번에 숨기거나 지운다. (ADR-0041)
+ *
+ * `action` 을 본문에 받는다. 지우는 경로와 숨기는 경로를 가르지 않는 이유는, 두 버튼이
+ * 같은 선택을 보내고 결과 처리도 같아서다. 상한은 한 페이지 크기(`PAGE_SIZE`)에 맞춘다.
+ * 체크박스로 고르는 것이므로 한 번에 그보다 많이 보낼 길이 없다.
+ * 같은 `publicId` 를 두 번 보내면 건수가 어긋나므로 중복을 거부한다.
+ */
+export const quoteBulkActionSchema = z.object({
+  action: z.enum(["hide", "delete"]),
+  publicIds: z
+    .array(z.string().min(1).max(64))
+    .min(1)
+    .max(20)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "같은 견적이 두 번 들어 있습니다.",
+    }),
+});

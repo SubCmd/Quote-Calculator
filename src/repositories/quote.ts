@@ -403,6 +403,137 @@ export async function setQuoteHidden(
   });
 }
 
+/** 일괄 작업 대상 한 줄. 연락처는 담지 않는다. 감사 로그에 들어갈 값이다. (ADR-0041) */
+export interface BulkQuoteRow {
+  publicId: string;
+  status: QuoteStatus;
+  hiddenAt: Date | null;
+  totalAmount: number;
+  productNames: string[];
+}
+
+/**
+ * 일괄 작업 전에 고른 건의 상태를 읽는다. (ADR-0041)
+ * 어느 건이 삭제 불가인지 판단하고 감사 로그 문구를 만드는 데 쓴다.
+ * 숨긴 건도 함께 읽는다. 목록이 낡아 이미 숨겨진 건이 선택에 들어올 수 있다.
+ */
+export async function findQuotesForBulkAction(
+  publicIds: string[],
+): Promise<BulkQuoteRow[]> {
+  const rows = await prisma.quote.findMany({
+    where: { publicId: { in: publicIds } },
+    select: {
+      publicId: true,
+      status: true,
+      hiddenAt: true,
+      totalAmount: true,
+      items: { select: { product: { select: { name: true } } } },
+    },
+  });
+
+  return rows.map((row) => ({
+    publicId: row.publicId,
+    status: row.status,
+    hiddenAt: row.hiddenAt,
+    totalAmount: row.totalAmount,
+    productNames: row.items.map((item) => item.product.name),
+  }));
+}
+
+/**
+ * 읽은 뒤 쓰는 사이에 다른 창이 먼저 바꾼 경우. 트랜잭션을 되돌리려면 던져야 해서
+ * 센티넬로 던지고 바로 밖에서 잡는다. 부분 처리로 끝내지 않는다. (ADR-0041)
+ */
+const RACED = Symbol("raced");
+
+function bulkAuditData(
+  rows: BulkQuoteRow[],
+  action: "QUOTE_HIDDEN" | "QUOTE_DELETED",
+  actor: string,
+): Prisma.AuditLogCreateManyInput[] {
+  return rows.map((row) => ({
+    action,
+    actor,
+    summary: `견적 ${row.publicId} ${action === "QUOTE_HIDDEN" ? "숨김" : "삭제"} · ${row.productNames.join(", ")} · ${row.totalAmount}원`,
+    targetType: "Quote",
+    targetId: row.publicId,
+    beforeValue: asJson({ status: row.status, hidden: row.hiddenAt !== null }),
+    afterValue: asJson(
+      action === "QUOTE_HIDDEN" ? { hidden: true } : { deleted: true },
+    ),
+  }));
+}
+
+/**
+ * 고른 건을 한꺼번에 숨긴다. 행은 지우지 않는다. (ADR-0035, ADR-0041)
+ * `where` 에 `hiddenAt: null` 을 걸어 이미 숨긴 건을 두 번 기록하지 않는다.
+ * 요청한 수와 바뀐 수가 다르면 전부 되돌린다. "n건 숨겼다" 가 거짓이 되면 안 된다.
+ */
+export async function hideQuotes(
+  rows: BulkQuoteRow[],
+  actor: string,
+): Promise<number | null> {
+  const publicIds = rows.map((row) => row.publicId);
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const changed = await tx.quote.updateMany({
+        where: { publicId: { in: publicIds }, hiddenAt: null },
+        data: { hiddenAt: new Date() },
+      });
+
+      if (changed.count !== publicIds.length) throw RACED;
+
+      await tx.auditLog.createMany({
+        data: bulkAuditData(rows, "QUOTE_HIDDEN", actor),
+      });
+
+      return changed.count;
+    });
+  } catch (error) {
+    if (error === RACED) return null;
+    throw error;
+  }
+}
+
+/**
+ * 고른 건의 행을 실제로 지운다. (ADR-0041)
+ * `where` 에 상태 조건을 함께 걸어 확정 건이 지워지는 경로를 DB 쪽에서도 막는다.
+ * 어느 상태를 지울 수 있는지는 Service 가 정한다(`transition.ts`). 여기서는 그 목록을
+ * 조건에 넣는 일만 한다. 보존 의무 판단을 Repository 에 적지 않는다.
+ * 감사 로그를 먼저 쓴다. 행은 사라지지만 지웠다는 사실은 남아야 한다.
+ * `QuoteItem` 은 외래 키 `onDelete: Cascade` 로 함께 지워진다.
+ */
+export async function deleteQuotes(
+  rows: BulkQuoteRow[],
+  deletableStatuses: QuoteStatus[],
+  actor: string,
+): Promise<number | null> {
+  const publicIds = rows.map((row) => row.publicId);
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.auditLog.createMany({
+        data: bulkAuditData(rows, "QUOTE_DELETED", actor),
+      });
+
+      const removed = await tx.quote.deleteMany({
+        where: {
+          publicId: { in: publicIds },
+          status: { in: deletableStatuses },
+        },
+      });
+
+      if (removed.count !== publicIds.length) throw RACED;
+
+      return removed.count;
+    });
+  } catch (error) {
+    if (error === RACED) return null;
+    throw error;
+  }
+}
+
 /**
  * 상태 변경과 감사 기록을 같은 트랜잭션에서 수행한다. (`.claude/rules/admin.md`)
  * `where` 에 이전 상태를 함께 걸어 두면 그 사이 누가 먼저 바꿨을 때 덮어쓰지 않는다.

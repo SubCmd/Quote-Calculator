@@ -11,7 +11,7 @@ export default async function QuotePage() {
   if (catalog.length === 0) {
     return (
       <main>
-        <h1>견적 계산기</h1>
+        <h1>나만의 컨쇼 플랜 찾기</h1>
         <p className="subtitle">
           등록된 상품이 없습니다. <code>npm run db:seed</code> 로 샘플 데이터를
           넣어주세요.
@@ -34,12 +34,12 @@ export default async function QuotePage() {
             />
             <div>
               <p className="brand">컨쇼 Conshow 입시컨설팅</p>
-              <h1>견적 계산기</h1>
+              <h1>나만의 컨쇼 플랜 찾기</h1>
             </div>
           </div>
           <p className="subtitle">
-            원하는 항목을 고르면 금액이 바로 계산됩니다. 표시 금액은 모두 부가세
-            포함입니다.
+            원하는 항목을 고르면 금액이 바로 계산됩니다. 표시 금액은 모두
+            현금가입니다.
           </p>
         </div>
       </header>

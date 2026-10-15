@@ -31,7 +31,9 @@ export function planReorder(current: string[], next: string[]): ReorderPlan {
 
   const unknown = next.filter((key) => !currentSet.has(key));
   if (unknown.length > 0)
-    throw new Error(`순서를 바꿀 수 없는 항목이 들어 있습니다: ${first(unknown)}`);
+    throw new Error(
+      `순서를 바꿀 수 없는 항목이 들어 있습니다: ${first(unknown)}`,
+    );
 
   const seen = new Set<string>();
   const duplicated = next.filter((key) => {
@@ -40,7 +42,9 @@ export function planReorder(current: string[], next: string[]): ReorderPlan {
     return false;
   });
   if (duplicated.length > 0)
-    throw new Error(`순서 목록에 같은 항목이 두 번 있습니다: ${first(duplicated)}`);
+    throw new Error(
+      `순서 목록에 같은 항목이 두 번 있습니다: ${first(duplicated)}`,
+    );
 
   const missing = current.filter((key) => !seen.has(key));
   if (missing.length > 0)

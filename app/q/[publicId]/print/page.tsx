@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatKRW } from "@/lib/money";
 import { supplierAccount, supplierFields } from "@/lib/supplier";
-import { splitTax } from "@/services/pricing/tax";
 import { acceptsPayment } from "@/services/quote/expiry";
 import { getQuote } from "@/services/quote/get-quote";
 import { PrintButton } from "./print-button";
@@ -30,7 +29,6 @@ export default async function QuotePrintPage({
 
   if (!quote) notFound();
 
-  const tax = splitTax(quote.totalAmount);
   const supplier = supplierFields();
   const expired = quote.status === "EXPIRED";
   // 입금받을 수 없는 견적에는 계좌를 찍지 않는다. (ADR-0019)
@@ -40,16 +38,16 @@ export default async function QuotePrintPage({
     <main className="print-page">
       <nav className="print-actions no-print">
         <Link className="ghost" href={`/q/${quote.publicId}`}>
-          견적 화면으로
+          플랜 화면으로
         </Link>
         <PrintButton />
       </nav>
 
       <article className="print-sheet">
         <header className="print-head">
-          <h1>견 적 서</h1>
+          <h1>컨 쇼 플 랜</h1>
           <dl className="print-issue">
-            <dt>견적번호</dt>
+            <dt>플랜 번호</dt>
             <dd>{quote.publicId}</dd>
             <dt>발행일</dt>
             <dd>{formatDate(quote.calculatedAt)}</dd>
@@ -74,7 +72,7 @@ export default async function QuotePrintPage({
 
         {expired && (
           <p className="print-notice">
-            유효기간이 지난 견적서입니다. 아래 금액은 발행 당시 기준입니다.
+            유효기간이 지난 컨쇼 플랜입니다. 아래 금액은 발행 당시 기준입니다.
           </p>
         )}
 
@@ -117,17 +115,9 @@ export default async function QuotePrintPage({
             )}
             <tr className="total">
               <th scope="row">
-                총액 <small>부가세 포함</small>
+                총액 <small>현금가</small>
               </th>
               <td className="num">{formatKRW(quote.totalAmount)}</td>
-            </tr>
-            <tr className="tax">
-              <th scope="row">공급가액</th>
-              <td className="num">{formatKRW(tax.supplyAmount)}</td>
-            </tr>
-            <tr className="tax">
-              <th scope="row">부가세</th>
-              <td className="num">{formatKRW(tax.vatAmount)}</td>
             </tr>
           </tfoot>
         </table>
@@ -153,8 +143,8 @@ export default async function QuotePrintPage({
         )}
 
         <p className="print-foot">
-          표시된 모든 금액은 부가세 포함 금액입니다. 공급가액과 부가세는 총액에서
-          역산한 표기이며, 총액에 더해지지 않습니다.
+          표시된 모든 금액은 현금가입니다. 카드로 결제하시는 경우 위 금액에
+          부가세 10%가 더해집니다.
         </p>
       </article>
     </main>

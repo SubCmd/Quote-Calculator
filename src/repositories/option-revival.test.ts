@@ -84,7 +84,11 @@ describe("planDiscountRevival", () => {
   });
 
   it("조건이 한 행도 없는 할인은 항상 되살린다", () => {
-    const plan = planDiscountRevival([candidate("ALWAYS", [])], new Set(), NAESIN);
+    const plan = planDiscountRevival(
+      [candidate("ALWAYS", [])],
+      new Set(),
+      NAESIN,
+    );
 
     expect(plan.revivable).toEqual([{ code: "ALWAYS", name: "ALWAYS 할인" }]);
   });

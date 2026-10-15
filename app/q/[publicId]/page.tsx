@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import logo from "../../../public/logo.png";
 import { formatKRW } from "@/lib/money";
 import { supplierAccount } from "@/lib/supplier";
-import { splitTax } from "@/services/pricing/tax";
+import { cardPaymentAmount } from "@/services/pricing/payment-amount";
 import { acceptsPayment } from "@/services/quote/expiry";
 import { getQuote } from "@/services/quote/get-quote";
 import { paymentMethodLabel } from "@/lib/payment-method";
@@ -43,7 +43,6 @@ export default async function SavedQuotePage({
 
   if (!quote) notFound();
 
-  const tax = splitTax(quote.totalAmount);
   const expired = quote.status === "EXPIRED";
   // 입금받을 수 없는 견적에는 계좌를 띄우지 않는다. (ADR-0019)
   const account = acceptsPayment(quote.status) ? supplierAccount() : null;
@@ -55,15 +54,20 @@ export default async function SavedQuotePage({
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-identity">
-            <Image className="app-logo" src={logo} alt="컨쇼 로고" height={52} />
+            <Image
+              className="app-logo"
+              src={logo}
+              alt="컨쇼 로고"
+              height={52}
+            />
             <div>
               <p className="brand">컨쇼 Conshow 입시컨설팅</p>
-              <h1>견적서</h1>
+              <h1>컨쇼 플랜</h1>
             </div>
           </div>
           <p className="subtitle">
             {formatDateTime(quote.calculatedAt)} 기준 금액입니다. 표시 금액은
-            모두 부가세 포함입니다.
+            모두 현금가입니다.
           </p>
         </div>
       </header>
@@ -73,7 +77,7 @@ export default async function SavedQuotePage({
             <span className={expired ? "status-badge expired" : "status-badge"}>
               {STATUS_LABEL[quote.status] ?? quote.status}
             </span>
-            <span className="quote-id">견적번호 {quote.publicId}</span>
+            <span className="quote-id">플랜 번호 {quote.publicId}</span>
           </div>
 
           {expired && (
@@ -116,16 +120,10 @@ export default async function SavedQuotePage({
           <dl className="total-box">
             <dt>
               총액
-              <small>부가세 포함</small>
+              <small>현금가</small>
             </dt>
             <dd>{formatKRW(quote.totalAmount)}</dd>
           </dl>
-          {quote.totalAmount > 0 && (
-            <p className="tax-note">
-              공급가액 {formatKRW(tax.supplyAmount)} · 부가세{" "}
-              {formatKRW(tax.vatAmount)}
-            </p>
-          )}
 
           {account && (
             <section className="account-box" aria-labelledby="account-title">
@@ -148,7 +146,10 @@ export default async function SavedQuotePage({
           )}
 
           {canChooseMethod && (
-            <section className="payment-section" aria-labelledby="payment-title">
+            <section
+              className="payment-section"
+              aria-labelledby="payment-title"
+            >
               <h2 id="payment-title">결제 방식</h2>
               <p className="hint">
                 어떻게 진행할지 골라 주세요. 고른 뒤에도 바꿀 수 있습니다.
@@ -162,6 +163,8 @@ export default async function SavedQuotePage({
               <PaymentMethodForm
                 publicId={quote.publicId}
                 selectedMethod={quote.paymentMethod}
+                cashAmount={quote.totalAmount}
+                cardAmount={cardPaymentAmount(quote.totalAmount)}
               />
               {quote.paymentMethod && (
                 <MethodNotice method={quote.paymentMethod} />
@@ -176,7 +179,7 @@ export default async function SavedQuotePage({
 
           <p className="sheet-actions">
             <Link className="ghost" href={`/q/${quote.publicId}/print`}>
-              견적서 인쇄 · PDF로 저장
+              컨쇼 플랜 인쇄 · PDF로 저장
             </Link>
           </p>
         </article>

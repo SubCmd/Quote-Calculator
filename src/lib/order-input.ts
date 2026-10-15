@@ -48,10 +48,9 @@ export function resolveOrderInput(
       return false;
     });
   if (duplicated.length > 0) {
-    const missing = Array.from(
-      { length: count },
-      (_, i) => i + 1,
-    ).filter((position) => !seen.has(position));
+    const missing = Array.from({ length: count }, (_, i) => i + 1).filter(
+      (position) => !seen.has(position),
+    );
     // 조사(이/가)는 숫자를 읽는 방식에 따라 달라진다. 숫자 뒤에 조사를 붙이지 않는다.
     return reject(
       `번호가 겹칩니다. 겹친 번호 ${Math.min(...duplicated)}, 빠진 번호 ${Math.min(...missing)}.`,

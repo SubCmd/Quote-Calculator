@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { estimateRequestSchema } from '@/lib/validation/estimate';
 import { estimate } from '@/services/pricing/estimate';
-import { splitTax } from '@/services/pricing/tax';
 
 /** 금액 계산 전용. 아무것도 저장하지 않는다. (docs/architecture.md 3절) */
 export async function POST(request: Request) {
@@ -20,5 +19,5 @@ export async function POST(request: Request) {
     return NextResponse.json(result, { status: 422 });
   }
 
-  return NextResponse.json({ ...result, tax: splitTax(result.totalAmount) });
+  return NextResponse.json(result);
 }

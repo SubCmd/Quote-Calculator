@@ -25,7 +25,11 @@ export async function cloneQuote(
 ): Promise<CloneQuoteResult> {
   const origin = await findQuoteDetail(publicId);
   if (!origin)
-    return { ok: false, reason: "not-found", error: "견적을 찾을 수 없습니다." };
+    return {
+      ok: false,
+      reason: "not-found",
+      error: "견적을 찾을 수 없습니다.",
+    };
 
   // 보관 기간이 지나 연락처가 파기된 견적이다. (ADR-0013)
   // 복제는 연락처 승계가 전제라 되살릴 값이 없다. 빈 값으로 저장하지 않는다.

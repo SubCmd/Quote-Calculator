@@ -4,6 +4,12 @@ export interface PaymentMethodChoice {
   value: PaymentMethod;
   label: string;
   description: string;
+  /**
+   * 이 방식으로 결제하면 현금가에 부가세 10%가 더해지는가. (ADR-0039)
+   * 어느 방식이 그런지를 여기 한 곳에만 적는다. 화면이 `=== "CARD"` 로 분기하면
+   * 방식이 늘 때 그 조건문을 찾아다녀야 한다.
+   */
+  vatAdded: boolean;
 }
 
 /**
@@ -21,16 +27,19 @@ export const PAYMENT_METHOD_CHOICES: PaymentMethodChoice[] = [
     value: "BANK_TRANSFER",
     label: "입금",
     description: "계좌로 입금 후 담당자 연락",
+    vatAdded: false,
   },
   {
     value: "CARD",
     label: "카드결제",
     description: "담당자가 결제 링크를 보내드립니다",
+    vatAdded: true,
   },
   {
     value: "CONSULTATION",
     label: "상담하기",
     description: "담당자와 상담 후 결정",
+    vatAdded: false,
   },
 ];
 

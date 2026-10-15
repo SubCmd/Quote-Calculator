@@ -5,9 +5,8 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { formatKRW } from "@/lib/money";
 import type { CatalogProduct } from "@/services/catalog/catalog";
 import type { CalculationSuccess, Violation } from "@/services/pricing/types";
-import type { TaxBreakdown } from "@/services/pricing/tax";
 
-type EstimateResponse = CalculationSuccess & { tax: TaxBreakdown };
+type EstimateResponse = CalculationSuccess;
 type CatalogGroup = CatalogProduct["groups"][number];
 
 const DEBOUNCE_MS = 300;
@@ -75,7 +74,7 @@ function pruneUnmetGroups(
 const CONSENT_NOTICE: { label: string; value: string }[] = [
   {
     label: "수집·이용 목적",
-    value: "견적 신청자 확인 및 입력한 조건에 따른 견적 결과 제공",
+    value: "플랜 신청자 확인 및 입력한 조건에 따른 컨쇼 플랜 결과 제공",
   },
   {
     label: "수집 항목",
@@ -84,12 +83,12 @@ const CONSENT_NOTICE: { label: string; value: string }[] = [
   {
     label: "보유·이용 기간",
     value:
-      "견적 생성 후 1년. 견적이 확정된 경우 확정 후 5년 (전자상거래법상 계약·결제 기록 보존)",
+      "플랜 생성 후 1년. 플랜이 확정된 경우 확정 후 5년 (전자상거래법상 계약·결제 기록 보존)",
   },
   {
     label: "동의 거부 권리",
     value:
-      "동의를 거부할 수 있습니다. 다만 동의하지 않으면 견적 결과 제공이 제한될 수 있습니다.",
+      "동의를 거부할 수 있습니다. 다만 동의하지 않으면 컨쇼 플랜 결과 제공이 제한될 수 있습니다.",
   },
 ];
 
@@ -132,7 +131,7 @@ function RequestForm({
     const body = await response.json();
 
     if (body.ok !== true) {
-      setError(body.error ?? "견적을 저장하지 못했습니다. 다시 시도해 주세요.");
+      setError(body.error ?? "플랜을 저장하지 못했습니다. 다시 시도해 주세요.");
       setSaving(false);
       return;
     }
@@ -143,9 +142,9 @@ function RequestForm({
 
   return (
     <form className="request" onSubmit={submit}>
-      <h3>견적 요청</h3>
+      <h3>플랜 요청</h3>
       <p className="hint">
-        연락받을 정보만 남겨 주세요. 저장 후 견적 주소를 보여드립니다.
+        연락받을 정보만 남겨 주세요. 저장 후 플랜 주소를 보여드립니다.
       </p>
 
       {/* 수집 전에 고지하고 동의를 받는다. 고지 없이 입력란을 먼저 보여주지 않는다. (ADR-0018) */}
@@ -217,10 +216,10 @@ function RequestForm({
         className="primary"
         disabled={!ready || !consent || saving}
       >
-        {saving ? "저장 중…" : "이 금액으로 견적 요청"}
+        {saving ? "저장 중…" : "이 금액으로 플랜 요청"}
       </button>
       {!ready && (
-        <p className="hint">항목을 선택하면 견적을 요청할 수 있습니다.</p>
+        <p className="hint">항목을 선택하면 플랜을 요청할 수 있습니다.</p>
       )}
       {ready && !consent && (
         <p className="hint">
@@ -413,7 +412,7 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
         </div>
 
         <aside className="summary">
-          <h2>견적 요약</h2>
+          <h2>맞춤형 플랜 요약</h2>
 
           {/* 입력 필드는 이 바깥에 둔다. 라이브 영역 안에 있으면 타이핑까지 읽어 준다. */}
           <div aria-live="polite">
@@ -475,16 +474,10 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                 <dl className="total-box">
                   <dt>
                     총액
-                    <small>부가세 포함</small>
+                    <small>현금가</small>
                   </dt>
                   <dd>{formatKRW(result.totalAmount)}</dd>
                 </dl>
-                {result.totalAmount > 0 && (
-                  <p className="tax-note">
-                    공급가액 {formatKRW(result.tax.supplyAmount)} · 부가세{" "}
-                    {formatKRW(result.tax.vatAmount)}
-                  </p>
-                )}
                 {/* 안내는 금액을 바꾸지 않는다. 바꾸는 것은 고객이 누를 때뿐이다. (ADR-0037) */}
                 {result.bundleSuggestions.map((suggestion) => (
                   <div className="bundle-suggestion" key={suggestion.optionId}>
@@ -526,7 +519,7 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
       {/* 좁은 화면에서는 요약이 화면 밖으로 밀린다. 총액만 아래에 띄워 둔다.
           요약 패널이 이미 aria-live 로 읽어 주므로 여기서는 숨긴다. */}
       <div className="mobile-total" aria-hidden="true">
-        <span className="label">총액 (부가세 포함)</span>
+        <span className="label">총액 (현금가)</span>
         <span className="value">
           {calculating
             ? "계산 중…"

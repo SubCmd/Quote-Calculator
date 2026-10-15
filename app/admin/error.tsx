@@ -20,12 +20,13 @@ export default function AdminError({
         <ul className="notice-list">
           <li>데이터베이스 연결이 끊겼는지</li>
           <li>
-            할인 조건의 옵션 코드가 현재 가격 규칙 버전에 실제로 있는지 (없으면 계산이 거부된다)
+            할인 조건의 옵션 코드가 현재 가격 규칙 버전에 실제로 있는지 (없으면
+            계산이 거부된다)
           </li>
         </ul>
         <p className="notice-warn">
-          다시 시도해도 같은 화면이면 새로고침으로는 풀리지 않습니다. 서버 로그에서 아래 번호로
-          원인을 확인해 주세요.
+          다시 시도해도 같은 화면이면 새로고침으로는 풀리지 않습니다. 서버
+          로그에서 아래 번호로 원인을 확인해 주세요.
         </p>
         <div className="notice-actions">
           <button type="button" className="primary" onClick={reset}>

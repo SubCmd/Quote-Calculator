@@ -14,8 +14,8 @@ export default function CustomerError({
     <main className="notice-page">
       <h1>금액을 보여드릴 수 없습니다</h1>
       <p className="subtitle">
-        일시적인 문제로 견적 금액을 불러오지 못했습니다. 잘못된 금액을 보여드리지 않기 위해
-        화면을 멈췄습니다.
+        일시적인 문제로 플랜 금액을 불러오지 못했습니다. 잘못된 금액을
+        보여드리지 않기 위해 화면을 멈췄습니다.
       </p>
 
       <div className="card notice-card">

@@ -7,6 +7,7 @@ import { paymentMethodLabel } from "@/lib/payment-method";
 import { listQuotes } from "@/services/quote/admin-quotes";
 import { parseSearchRange } from "@/services/quote/search-range";
 import { statusLabel } from "@/services/quote/transition";
+import { BulkQuoteList, type BulkListRow } from "./bulk-list";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,22 @@ export default async function AdminQuotesPage({
     return search ? `/admin/quotes?${search}` : "/admin/quotes";
   };
 
+  // 금액·일시 포맷은 서버에서 끝낸다. 클라이언트가 다시 만들면 수화가 어긋난다.
+  const rows: BulkListRow[] = items.map((item) => ({
+    publicId: item.publicId,
+    whenText: item.calculatedAt.toLocaleString("ko-KR"),
+    productName: item.productName,
+    maskedName: item.maskedName,
+    maskedPhone: item.maskedPhone,
+    totalText: formatKRW(item.totalAmount),
+    paymentText: item.paymentMethod
+      ? paymentMethodLabel(item.paymentMethod)
+      : "—",
+    statusText: statusLabel(item.status),
+    dimmed: item.status === "EXPIRED" || item.status === "CANCELED",
+    deletable: item.deletable,
+  }));
+
   const filterHref = (value: QuoteStatus | null) =>
     hrefWith({ status: value, page: null });
   const pageHref = (target: number) =>
@@ -129,11 +146,21 @@ export default async function AdminQuotesPage({
           </div>
           <div className="search-field">
             <label htmlFor="from">시작일</label>
-            <input id="from" name="from" type="date" defaultValue={query.from ?? ""} />
+            <input
+              id="from"
+              name="from"
+              type="date"
+              defaultValue={query.from ?? ""}
+            />
           </div>
           <div className="search-field">
             <label htmlFor="to">종료일</label>
-            <input id="to" name="to" type="date" defaultValue={query.to ?? ""} />
+            <input
+              id="to"
+              name="to"
+              type="date"
+              defaultValue={query.to ?? ""}
+            />
           </div>
           <div className="search-actions">
             <button type="submit" className="primary">
@@ -178,54 +205,10 @@ export default async function AdminQuotesPage({
         )}
 
         <div className="card">
-          {items.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="empty-note">해당하는 견적이 없습니다.</p>
           ) : (
-            <table className="quote-list">
-              <thead>
-                <tr>
-                  <th>요청 일시</th>
-                  <th>상품</th>
-                  <th>고객</th>
-                  <th>연락처</th>
-                  <th>총액</th>
-                  <th>결제 방식</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.publicId}>
-                    <td className="when">
-                      <Link href={`/admin/quotes/${item.publicId}`}>
-                        {item.calculatedAt.toLocaleString("ko-KR")}
-                      </Link>
-                    </td>
-                    <td>{item.productName}</td>
-                    <td>{item.maskedName}</td>
-                    <td className="num">{item.maskedPhone}</td>
-                    <td className="num">{formatKRW(item.totalAmount)}</td>
-                    <td>
-                      {item.paymentMethod
-                        ? paymentMethodLabel(item.paymentMethod)
-                        : "—"}
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          item.status === "EXPIRED" ||
-                          item.status === "CANCELED"
-                            ? "status-badge expired"
-                            : "status-badge"
-                        }
-                      >
-                        {statusLabel(item.status)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <BulkQuoteList rows={rows} hiddenView={hidden} />
           )}
         </div>
 

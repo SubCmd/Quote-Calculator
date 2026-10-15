@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { calculate } from "./calculate";
-import { splitTax } from "./tax";
 import type { RuleSet } from "./types";
 
 /**
@@ -624,14 +623,5 @@ describe("calculate - 선행 그룹 (docs/pricing-rules.md 5-1절, ADR-0010)", (
       ),
     };
     expect(() => run(broken, ["opt-s3", "opt-kakao"])).toThrow("선행 그룹");
-  });
-});
-
-describe("splitTax", () => {
-  it("공급가액과 세액의 합은 총액과 정확히 일치한다", () => {
-    const { supplyAmount, vatAmount } = splitTax(425_000);
-    expect(supplyAmount).toBe(386_363);
-    expect(vatAmount).toBe(38_637);
-    expect(supplyAmount + vatAmount).toBe(425_000);
   });
 });

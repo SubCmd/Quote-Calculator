@@ -115,7 +115,9 @@ describe("lockMessage", () => {
       scope: "IP",
       retryAfterSeconds: 301,
     });
-    expect(message).toBe("로그인 시도가 너무 많습니다. 6분 후에 다시 시도해 주세요.");
+    expect(message).toBe(
+      "로그인 시도가 너무 많습니다. 6분 후에 다시 시도해 주세요.",
+    );
   });
 
   it("1초가 남아도 1분으로 안내한다", () => {
@@ -124,6 +126,8 @@ describe("lockMessage", () => {
       scope: "GLOBAL",
       retryAfterSeconds: 1,
     });
-    expect(message).toBe("로그인 시도가 너무 많습니다. 1분 후에 다시 시도해 주세요.");
+    expect(message).toBe(
+      "로그인 시도가 너무 많습니다. 1분 후에 다시 시도해 주세요.",
+    );
   });
 });

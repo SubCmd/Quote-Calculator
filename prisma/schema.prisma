@@ -243,6 +243,9 @@ enum AuditAction {
   QUOTE_HIDDEN
   /// 숨긴 견적을 되돌린 기록 (ADR-0035)
   QUOTE_RESTORED
+  /// 견적 행을 실제로 지운 기록. REQUESTED·CANCELED 만 대상이다 (ADR-0041)
+  /// 행은 사라지지만 지웠다는 사실은 남는다. 연락처는 담지 않는다.
+  QUOTE_DELETED
   /// 묶음 관계 등록. 묶음 옵션과 구성 옵션 코드를 afterValue 에 담는다 (ADR-0038)
   BUNDLE_ADDED
   /// 묶음 관계 삭제. 지운 구성까지 beforeValue 에 담는다. 수정이 없으므로 기록도 이 둘뿐이다 (ADR-0038)

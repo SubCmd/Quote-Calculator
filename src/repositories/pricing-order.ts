@@ -127,7 +127,10 @@ export async function reorderGroups(
     if (!group.dependsOnGroupId) continue;
     const prerequisite = codeById.get(group.dependsOnGroupId);
     if (!prerequisite) continue;
-    if (plan.sortOrderByKey.get(group.code)! < plan.sortOrderByKey.get(prerequisite)!)
+    if (
+      plan.sortOrderByKey.get(group.code)! <
+      plan.sortOrderByKey.get(prerequisite)!
+    )
       throw new Error(
         `'${group.name}' 은 먼저 고르는 '${nameByCode.get(prerequisite)}' 보다 위에 둘 수 없습니다.`,
       );
@@ -176,7 +179,11 @@ export async function reorderOptions(
   actor: string,
 ): Promise<ReorderResult> {
   const group = await prisma.optionGroup.findFirst({
-    where: { productId: input.productId, code: input.groupCode, isActive: true },
+    where: {
+      productId: input.productId,
+      code: input.groupCode,
+      isActive: true,
+    },
     select: {
       id: true,
       name: true,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   allowedTransitions,
   canTransition,
+  isDeletableStatus,
   transitionError,
 } from "./transition";
 
@@ -80,5 +81,29 @@ describe("상태 전이", () => {
     expect(transitionError("DRAFT", "CONFIRMED")).toBe(
       "'작성 중' 에서 '확정' 로는 바꿀 수 없습니다.",
     );
+  });
+});
+
+describe("행을 지울 수 있는 상태 (ADR-0041)", () => {
+  it("요청 접수 건은 지울 수 있다", () => {
+    expect(isDeletableStatus("REQUESTED")).toBe(true);
+  });
+
+  it("취소된 건은 지울 수 있다", () => {
+    expect(isDeletableStatus("CANCELED")).toBe(true);
+  });
+
+  // 보존 의무가 걸린 자리다. 경고로 막지 않는다. (ADR-0022)
+  it("확정된 건은 지울 수 없다", () => {
+    expect(isDeletableStatus("CONFIRMED")).toBe(false);
+  });
+
+  // 저장된 상태로만 판정한다. 만료는 표시 상태라서 여기에 들어오지 않는다. (ADR-0012)
+  it("EXPIRED 는 지울 수 있는 상태가 아니다", () => {
+    expect(isDeletableStatus("EXPIRED")).toBe(false);
+  });
+
+  it("DRAFT 는 지울 수 있는 상태가 아니다", () => {
+    expect(isDeletableStatus("DRAFT")).toBe(false);
   });
 });

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { isAdmin } from '@/lib/auth';
 import { previewSchema } from '@/lib/validation/admin';
 import { previewChange } from '@/services/admin/pricing-admin';
-import { splitTax } from '@/services/pricing/tax';
 
 /** 저장 전 미리보기. 아무것도 저장하지 않는다. 계산은 /api/estimate 와 같은 Service 다. */
 export async function POST(request: Request) {
@@ -28,11 +27,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    before: result.before.ok
-      ? { totalAmount: result.before.totalAmount, tax: splitTax(result.before.totalAmount) }
-      : null,
-    after: result.after.ok
-      ? { totalAmount: result.after.totalAmount, tax: splitTax(result.after.totalAmount) }
-      : null,
+    before: result.before.ok ? { totalAmount: result.before.totalAmount } : null,
+    after: result.after.ok ? { totalAmount: result.after.totalAmount } : null,
   });
 }

@@ -90,7 +90,9 @@ export async function findRuleSet(
    * 때문에 그 상품의 계산이 통째로 실패한다. 할인은 조건을 무시하면 금액이 틀려서 던진다.
    */
   const bundles = product.bundles.flatMap((b) => {
-    const optionId = optionIdByCode.get(conditionKey(b.groupCode, b.optionCode));
+    const optionId = optionIdByCode.get(
+      conditionKey(b.groupCode, b.optionCode),
+    );
     if (!optionId) return [];
 
     const componentOptionIds = b.components.map((c) =>

@@ -76,7 +76,9 @@ export function evaluateLoginLock(
 }
 
 /** 잠긴 사람에게 보여 줄 문구. 남은 시도 횟수는 알려주지 않는다. (ADR-0020) */
-export function lockMessage(lock: Extract<LoginLock, { locked: true }>): string {
+export function lockMessage(
+  lock: Extract<LoginLock, { locked: true }>,
+): string {
   const minutes = Math.ceil(lock.retryAfterSeconds / 60);
   return `로그인 시도가 너무 많습니다. ${minutes}분 후에 다시 시도해 주세요.`;
 }

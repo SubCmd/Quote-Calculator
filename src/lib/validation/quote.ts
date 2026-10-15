@@ -17,7 +17,10 @@ export const saveQuoteSchema = z.object({
       .string()
       .trim()
       // 하이픈이 있든 없든 받고, 저장 전에 숫자만 남긴다.
-      .regex(/^01[0-9]-?\d{3,4}-?\d{4}$/, "휴대폰 번호 형식이 올바르지 않습니다.")
+      .regex(
+        /^01[0-9]-?\d{3,4}-?\d{4}$/,
+        "휴대폰 번호 형식이 올바르지 않습니다.",
+      )
       .transform((value) => value.replace(/-/g, "")),
     email: z
       .string()

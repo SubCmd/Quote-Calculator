@@ -1,16 +1,25 @@
 import type { PaymentMethod, QuoteStatus } from "@prisma/client";
 import { formatPhone, maskName, maskPhone } from "@/lib/masking";
 import {
+  deleteQuotes,
   findQuoteDetail,
   findQuoteList,
   findQuoteStatus,
+  findQuotesForBulkAction,
+  hideQuotes,
   logQuoteSearch,
   logQuoteView,
   setQuoteHidden,
   updateQuoteStatus,
 } from "@/repositories/quote";
 import { displayStatus } from "./expiry";
-import { allowedTransitions, statusLabel, transitionError } from "./transition";
+import {
+  DELETABLE_STATUSES,
+  allowedTransitions,
+  isDeletableStatus,
+  statusLabel,
+  transitionError,
+} from "./transition";
 import type { SavedQuoteItem } from "./types";
 
 export const PAGE_SIZE = 20;
@@ -29,6 +38,12 @@ export interface AdminQuoteListItem {
   paymentMethod: PaymentMethod | null;
   /** 숨긴 시각. 숨긴 견적 목록에서만 값이 있다. (ADR-0035) */
   hiddenAt: Date | null;
+  /**
+   * 행을 지울 수 있는 건인가. (ADR-0041) **저장된 상태**로 판정한 값이다.
+   * 화면이 `status` 로 다시 판단하지 않는다. 그 칸은 만료가 반영된 표시 상태라서
+   * 유효기간이 지난 요청 접수 건을 지울 수 없는 것으로 읽는다.
+   */
+  deletable: boolean;
 }
 
 export interface AdminQuoteList {
@@ -76,6 +91,7 @@ export async function listQuotes(
       calculatedAt: row.calculatedAt,
       paymentMethod: row.paymentMethod,
       hiddenAt: row.hiddenAt,
+      deletable: isDeletableStatus(row.status),
     })),
     total,
     page,
@@ -220,7 +236,11 @@ export async function setQuoteVisibility(
   // 숨긴 견적도 찾아야 한다. 되돌리는 요청이 그 상태에서 온다.
   const current = await findQuoteStatus(publicId);
   if (current === null)
-    return { ok: false, reason: "not-found", error: "견적을 찾을 수 없습니다." };
+    return {
+      ok: false,
+      reason: "not-found",
+      error: "견적을 찾을 수 없습니다.",
+    };
 
   const changed = await setQuoteHidden(
     publicId,
@@ -242,3 +262,78 @@ export async function setQuoteVisibility(
   return { ok: true, hidden: hide };
 }
 
+export type BulkQuoteResult =
+  | { ok: true; count: number }
+  | {
+      ok: false;
+      reason: "not-found" | "blocked" | "conflict";
+      error: string;
+      /** 작업을 막은 건. 어느 건이 문제인지 적어야 다음 정리에서 또 걸리지 않는다. */
+      blocked: string[];
+    };
+
+/** 목록이 낡아 고른 건이 더는 그 상태가 아니다. 부분 처리하지 않고 전부 거부한다. */
+const STALE_LIST: Omit<Extract<BulkQuoteResult, { ok: false }>, "reason"> = {
+  ok: false,
+  error: "목록이 바뀌었습니다. 새로 고친 뒤 다시 골라 주세요.",
+  blocked: [],
+};
+
+/**
+ * 고른 견적을 한꺼번에 숨긴다. (ADR-0041)
+ * 모든 상태에 쓸 수 있고 되돌릴 수 있다. 되돌리는 자리는 상세 화면이다. (ADR-0035)
+ */
+export async function bulkHideQuotes(
+  publicIds: string[],
+  actor: string,
+): Promise<BulkQuoteResult> {
+  const rows = await findQuotesForBulkAction(publicIds);
+
+  if (rows.length !== publicIds.length)
+    return { ...STALE_LIST, reason: "not-found" };
+
+  const already = rows.filter((row) => row.hiddenAt !== null);
+  if (already.length > 0)
+    return {
+      ok: false,
+      reason: "conflict",
+      error: "이미 숨겨진 견적이 선택에 들어 있습니다. 새로 고쳐 주세요.",
+      blocked: already.map((row) => row.publicId),
+    };
+
+  const count = await hideQuotes(rows, actor);
+  if (count === null) return { ...STALE_LIST, reason: "conflict" };
+
+  return { ok: true, count };
+}
+
+/**
+ * 고른 견적의 행을 실제로 지운다. 되돌릴 수 없다. (ADR-0041)
+ *
+ * 확정 건이 하나라도 섞이면 **아무것도 지우지 않는다.** 되는 것만 지우고 끝내면
+ * 운영자는 고른 건수만큼 지워졌다고 읽고 넘어가고, 남은 건은 다음 정리에서 또 걸린다.
+ */
+export async function bulkDeleteQuotes(
+  publicIds: string[],
+  actor: string,
+): Promise<BulkQuoteResult> {
+  const rows = await findQuotesForBulkAction(publicIds);
+
+  if (rows.length !== publicIds.length)
+    return { ...STALE_LIST, reason: "not-found" };
+
+  // 판정은 저장된 상태로 한다. 화면의 버튼 비활성은 보조일 뿐이다.
+  const blocked = rows.filter((row) => !isDeletableStatus(row.status));
+  if (blocked.length > 0)
+    return {
+      ok: false,
+      reason: "blocked",
+      error: `확정된 견적 ${blocked.length}건은 지울 수 없습니다. 보존 의무가 있어 숨기기만 가능합니다.`,
+      blocked: blocked.map((row) => row.publicId),
+    };
+
+  const count = await deleteQuotes(rows, DELETABLE_STATUSES, actor);
+  if (count === null) return { ...STALE_LIST, reason: "conflict" };
+
+  return { ok: true, count };
+}
