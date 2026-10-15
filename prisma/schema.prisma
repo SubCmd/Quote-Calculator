@@ -305,27 +305,3 @@ model QuoteItem {
   @@index([quoteId])
   @@map("quote_item")
 }
-
-/// 카드결제 기록. 결제선생 API 응답을 저장한다.
-model Payment {
-  id        String   @id @default(cuid())
-  quoteId   String   @map("quote_id")
-  /// 결제선생 거래 고유번호
-  impUid    String   @map("imp_uid")
-  /// 가맹점 주문번호
-  merchantUid String @map("merchant_uid")
-  /// 결제 금액 (원)
-  amount    Int
-  /// 결제 상태: paid, failed, cancelled 등
-  status    String
-  /// 결제선생 API 응답 전체 저장
-  rawResponse Json   @map("raw_response")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@unique([impUid])
-  @@index([quoteId])
-  @@index([createdAt])
-  @@map("payment")
-}
