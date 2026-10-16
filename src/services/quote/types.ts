@@ -13,6 +13,8 @@ export interface SaveQuoteInput {
   optionIds: string[];
   /** 고지를 읽고 동의했다는 표시. 검증을 통과한 요청에는 `true` 뿐이다. (ADR-0018) */
   privacyConsent: true;
+  /** 취소·환불 규정 동의. 근거 법이 달라 개인정보 동의와 따로 받는다. (ADR-0042) */
+  refundPolicyConsent: true;
   customer: CustomerInput;
 }
 

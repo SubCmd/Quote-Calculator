@@ -110,6 +110,8 @@ export interface AdminQuoteDetail {
   customerEmail: string;
   /** 개인정보 수집·이용 동의 시각. `null` 이면 동의 절차 도입 전 견적이다. (ADR-0018) */
   privacyConsentAt: Date | null;
+  /** 취소·환불 규정 동의 시각. `null` 이면 고지 도입 전 견적이다. (ADR-0042) */
+  refundPolicyConsentAt: Date | null;
   /** 연락처를 비운 시각. 빈 연락처가 파기 때문인지 구분한다. (ADR-0022) */
   purgedAt: Date | null;
   items: SavedQuoteItem[];
@@ -152,6 +154,7 @@ export async function getQuoteDetail(
     customerPhone: formatPhone(quote.customerPhone),
     customerEmail: quote.customerEmail ?? "—",
     privacyConsentAt: quote.privacyConsentAt,
+    refundPolicyConsentAt: quote.refundPolicyConsentAt,
     purgedAt: quote.purgedAt,
     items: quote.items,
     subtotal: quote.subtotal,

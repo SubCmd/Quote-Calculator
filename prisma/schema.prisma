@@ -301,6 +301,9 @@ model Quote {
   customerEmail String?   @map("customer_email")
   /// 개인정보 수집·이용 동의 시각. 파기 대상이 아니다. (ADR-0018)
   privacyConsentAt DateTime? @map("privacy_consent_at")
+  /// 취소·환불 규정 동의 시각. 개인정보 동의와 근거 법이 달라 따로 남긴다. (ADR-0042)
+  /// null 이면 환불 규정 고지 도입 전에 만들어진 행이고, 그런 행은 더 이상 생기지 않는다.
+  refundPolicyConsentAt DateTime? @map("refund_policy_consent_at")
   /// CONFIRMED 로 전이한 시각. 보존기간 5년의 기준점이다. (ADR-0022)
   /// updatedAt 은 아무 변경에나 바뀌어서 기준이 될 수 없다.
   confirmedAt DateTime? @map("confirmed_at")

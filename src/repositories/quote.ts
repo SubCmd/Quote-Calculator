@@ -12,6 +12,8 @@ export interface CreateQuoteInput {
   customer: CustomerInput;
   /** 개인정보 수집·이용 동의 시각. 복제본은 원본 값을 승계한다. (ADR-0018) */
   privacyConsentAt: Date | null;
+  /** 취소·환불 규정 동의 시각. 복제본은 원본 값을 승계한다. (ADR-0042) */
+  refundPolicyConsentAt: Date | null;
   items: {
     productId: string;
     optionAmount: number;
@@ -61,6 +63,7 @@ function quoteCreateData(input: CreateQuoteInput): Prisma.QuoteCreateInput {
     customerPhone: input.customer.phone,
     customerEmail: input.customer.email,
     privacyConsentAt: input.privacyConsentAt,
+    refundPolicyConsentAt: input.refundPolicyConsentAt,
     subtotal: input.subtotal,
     discountAmount: input.discountAmount,
     totalAmount: input.totalAmount,
@@ -283,6 +286,8 @@ export interface QuoteDetailRow extends QuoteRow {
   customerEmail: string | null;
   /** `null` 이면 동의 절차 도입(ADR-0018) 전에 만들어진 견적이다. */
   privacyConsentAt: Date | null;
+  /** `null` 이면 환불 규정 고지 도입(ADR-0042) 전에 만들어진 견적이다. */
+  refundPolicyConsentAt: Date | null;
   /** 연락처를 비운 시각. 빈 연락처가 파기 때문인지 구분한다. (ADR-0022) */
   purgedAt: Date | null;
   createdAt: Date;
@@ -319,6 +324,7 @@ export async function findQuoteDetail(
     customerPhone: quote.customerPhone,
     customerEmail: quote.customerEmail,
     privacyConsentAt: quote.privacyConsentAt,
+    refundPolicyConsentAt: quote.refundPolicyConsentAt,
     purgedAt: quote.purgedAt,
     subtotal: quote.subtotal,
     discountAmount: quote.discountAmount,

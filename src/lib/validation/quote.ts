@@ -11,6 +11,10 @@ export const saveQuoteSchema = z.object({
   privacyConsent: z.literal(true, {
     errorMap: () => ({ message: "개인정보 수집·이용에 동의해 주세요." }),
   }),
+  // 거래 조건 동의도 저장의 전제다. 개인정보 동의와 따로 받는다. (ADR-0042)
+  refundPolicyConsent: z.literal(true, {
+    errorMap: () => ({ message: "취소 및 환불 규정에 동의해 주세요." }),
+  }),
   customer: z.object({
     name: z.string().trim().min(1, "이름을 입력해 주세요.").max(50),
     phone: z

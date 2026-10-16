@@ -68,8 +68,10 @@ export async function cloneQuote(
         phone: origin.customerPhone,
         email: origin.customerEmail,
       },
-      // 복제는 담당자 행위다. 새로 수집한 개인정보가 없으므로 원본의 동의를 승계한다. (ADR-0018)
+      // 복제는 담당자 행위다. 고객에게 다시 동의를 받는 행위가 아니므로 원본을 승계한다.
+      // (ADR-0018, ADR-0042)
       privacyConsentAt: origin.privacyConsentAt,
+      refundPolicyConsentAt: origin.refundPolicyConsentAt,
       items: result.items.map((item) => ({
         productId: item.productId,
         optionAmount: item.optionAmount,

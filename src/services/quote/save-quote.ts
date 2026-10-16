@@ -33,6 +33,7 @@ export async function saveQuote(
     customer: input.customer,
     // 동의 시각은 저장 시각이다. 서비스 안에서 시각을 읽지 않는다. (ADR-0018)
     privacyConsentAt: now,
+    refundPolicyConsentAt: now,
     items: result.items.map((item) => ({
       productId: item.productId,
       optionAmount: item.optionAmount,

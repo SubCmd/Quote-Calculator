@@ -88,6 +88,12 @@ export default async function AdminQuoteDetailPage({
                 ? quote.privacyConsentAt.toLocaleString("ko-KR")
                 : "기록 없음 (동의 절차 도입 전 견적)"}
             </dd>
+            <dt>취소·환불 동의</dt>
+            <dd>
+              {quote.refundPolicyConsentAt
+                ? quote.refundPolicyConsentAt.toLocaleString("ko-KR")
+                : "기록 없음 (환불 규정 고지 도입 전 견적)"}
+            </dd>
           </dl>
           <p className="hint">
             이 화면을 연 기록이 변경 이력에 남습니다. 보관 기간이 지난 견적의

@@ -93,6 +93,17 @@ const CONSENT_NOTICE: { label: string; value: string }[] = [
 ];
 
 /**
+ * 취소·환불 규정 요약. 전문은 `/refund` 다. (ADR-0042)
+ * 요약과 전문이 어긋나면 안 되므로, 전문을 고칠 때 이 목록도 함께 본다.
+ */
+const REFUND_SUMMARY: string[] = [
+  "결제일로부터 7일 이내에 상담 시작 전 취소하면 전액 환불됩니다.",
+  "7일이 지난 뒤에는 상담일까지 남은 기간에 따라 결제금액의 10~50%가 차감됩니다.",
+  "이미 진행한 상담 회차는 환불 대상에서 제외되고, 남은 회차 금액은 환불됩니다.",
+  "상담일 2일 전까지 1회에 한해 무료로 일정을 변경할 수 있습니다.",
+];
+
+/**
  * 견적 요청. 금액은 보내지 않는다. 서버가 같은 선택으로 다시 계산한다. (ADR-0003)
  * 받는 개인정보는 연락 수단뿐이고(ADR-0013), 수집 전에 동의를 받는다. (ADR-0018)
  */
@@ -109,9 +120,13 @@ function RequestForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [consent, setConsent] = useState(false);
+  // 동의는 둘이고 둘 다 필수다. 근거 법이 달라 한 값으로 묶지 않는다. (ADR-0042)
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [refundConsent, setRefundConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const bothConsented = privacyConsent && refundConsent;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -124,7 +139,8 @@ function RequestForm({
       body: JSON.stringify({
         productId,
         optionIds,
-        privacyConsent: consent,
+        privacyConsent,
+        refundPolicyConsent: refundConsent,
         customer: { name, phone, email },
       }),
     });
@@ -158,15 +174,50 @@ function RequestForm({
             </div>
           ))}
         </dl>
+        {/*
+          전문은 새 탭으로 연다. 같은 탭에서 이동하면 고른 항목이 전부 사라진다.
+          선택은 클라이언트 상태이고 URL 에 없다. (ADR-0042)
+        */}
+        <p className="consent-more">
+          <a href="/privacy" target="_blank" rel="noopener noreferrer">
+            개인정보 처리방침 전문 보기
+          </a>
+        </p>
         <div className="consent-check">
           <input
             type="checkbox"
             id="privacy-consent"
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
+            checked={privacyConsent}
+            onChange={(event) => setPrivacyConsent(event.target.checked)}
           />
           <label htmlFor="privacy-consent">
             <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다.
+          </label>
+        </div>
+      </section>
+
+      {/* 결제 방식을 고르기 전에 거래 조건을 고지한다. 근거 법이 달라 동의도 따로 받는다. (ADR-0042) */}
+      <section className="consent" aria-labelledby="refund-consent-title">
+        <h4 id="refund-consent-title">취소 및 환불 규정 동의</h4>
+        <ul className="consent-list">
+          {REFUND_SUMMARY.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        <p className="consent-more">
+          <a href="/refund" target="_blank" rel="noopener noreferrer">
+            취소 및 환불 규정 전문 보기
+          </a>
+        </p>
+        <div className="consent-check">
+          <input
+            type="checkbox"
+            id="refund-consent"
+            checked={refundConsent}
+            onChange={(event) => setRefundConsent(event.target.checked)}
+          />
+          <label htmlFor="refund-consent">
+            <strong>[필수]</strong> 취소 및 환불 규정에 동의합니다.
           </label>
         </div>
       </section>
@@ -214,16 +265,17 @@ function RequestForm({
       <button
         type="submit"
         className="primary"
-        disabled={!ready || !consent || saving}
+        disabled={!ready || !bothConsented || saving}
       >
         {saving ? "저장 중…" : "이 금액으로 플랜 요청"}
       </button>
       {!ready && (
         <p className="hint">항목을 선택하면 플랜을 요청할 수 있습니다.</p>
       )}
-      {ready && !consent && (
+      {ready && !bothConsented && (
         <p className="hint">
-          개인정보 수집·이용에 동의하면 요청할 수 있습니다.
+          개인정보 수집·이용과 취소·환불 규정에 모두 동의하면 요청할 수
+          있습니다.
         </p>
       )}
     </form>
