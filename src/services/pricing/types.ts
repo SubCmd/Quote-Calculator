@@ -13,6 +13,13 @@ export interface OptionGroupRule {
   singleSelect: boolean;
   /** 이 그룹을 고르기 전에 선택이 있어야 하는 그룹. null 이면 제약 없음 (ADR-0010) */
   dependsOnGroupId: string | null;
+  /**
+   * 선행 그룹에서 골라야 하는 옵션의 코드. null 이면 그룹에 선택이 있으면 충족 (ADR-0044)
+   * Repository 가 `dependsOnOptionId` 를 채운다. **코드가 있는데 id 가 null 이면
+   * 충족 불가**이고 그 그룹은 선택할 수 없다. 해석 실패에 예외를 던지지 않는다.
+   */
+  dependsOnOptionCode: string | null;
+  dependsOnOptionId: string | null;
 }
 
 export interface OptionRule {
@@ -72,6 +79,7 @@ export type ViolationCode =
   | "REQUIRED_GROUP_EMPTY"
   | "MULTIPLE_IN_SINGLE_GROUP"
   | "GROUP_PREREQUISITE_UNMET"
+  | "OPTION_PREREQUISITE_UNMET"
   | "UNKNOWN_OPTION"
   | "UNKNOWN_PRODUCT";
 

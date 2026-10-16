@@ -55,7 +55,24 @@ export function validateSelection(
           `선행 그룹을 찾을 수 없습니다: ${group.dependsOnGroupId}`,
         );
       }
-      if (!groupsWithSelection.has(prerequisite.id)) {
+      // 선행이 옵션 하나로 좁혀진 그룹은 그 옵션이 선택되어야 한다. (ADR-0044)
+      // 코드가 있는데 id 가 비어 있으면 해석 실패이고, 충족 불가로 둔다.
+      if (group.dependsOnOptionCode !== null) {
+        const requiredId = group.dependsOnOptionId;
+        const met = requiredId !== null && optionIds.includes(requiredId);
+        if (!met) {
+          const requiredOption =
+            requiredId === null ? undefined : optionById.get(requiredId);
+          violations.push({
+            code: "OPTION_PREREQUISITE_UNMET",
+            groupId: group.id,
+            optionIds: inGroup.map((o) => o.id),
+            message: requiredOption
+              ? `먼저 '${requiredOption.name}' 을(를) 선택해 주세요.`
+              : "지금은 선택할 수 없는 항목입니다.",
+          });
+        }
+      } else if (!groupsWithSelection.has(prerequisite.id)) {
         violations.push({
           code: "GROUP_PREREQUISITE_UNMET",
           groupId: group.id,

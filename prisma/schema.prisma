@@ -62,6 +62,9 @@ model OptionGroup {
   selectAll    Boolean  @default(false) @map("select_all")
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹. null 이면 제약 없음 (ADR-0010)
   dependsOnGroupId String? @map("depends_on_group_id")
+  /// 선행 그룹에서 **이 코드의 옵션**을 골라야 충족된다. null 이면 그룹에 선택이 있으면 충족 (ADR-0044)
+  /// 옵션 행 id 가 아니라 코드다. ProductOption 은 버전 테이블이라 id 가 바뀐다 (ADR-0009)
+  dependsOnOptionCode String? @map("depends_on_option_code")
   /// 이 단계를 고르는 화면에 항상 보이는 한 줄 안내. 버전을 남기지 않고 덮어쓴다 (ADR-0025)
   summary      String?
   /// 펼쳐서 읽는 긴 안내. 평문으로만 다룬다

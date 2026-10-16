@@ -103,6 +103,30 @@ export async function findRuleSet(
     return [{ optionId, componentOptionIds: componentOptionIds as string[] }];
   });
 
+  /**
+   * 선행 옵션도 코드로 저장되어 있다. 선행 **그룹**의 코드와 짝지어 해석한다. (ADR-0044)
+   * 옵션 코드는 그룹 안에서만 유일하다. (ADR-0027)
+   *
+   * 묶음과 같이 **던지지 않는다.** 해석되지 않으면 id 가 `null` 로 남고
+   * 검증이 그 그룹을 충족 불가로 본다. 조건을 못 읽을 때 과하게 파는 쪽이 아니라
+   * 팔지 않는 쪽이 안전하다.
+   */
+  const groupCodeById = new Map(
+    product.optionGroups.map((g) => [g.id, g.code]),
+  );
+
+  function resolvePrerequisiteOption(
+    dependsOnGroupId: string | null,
+    dependsOnOptionCode: string | null,
+  ): string | null {
+    if (dependsOnGroupId === null || dependsOnOptionCode === null) return null;
+    const groupCode = groupCodeById.get(dependsOnGroupId);
+    if (groupCode === undefined) return null;
+    return (
+      optionIdByCode.get(conditionKey(groupCode, dependsOnOptionCode)) ?? null
+    );
+  }
+
   return {
     product: { id: product.id, name: product.name },
     groups: product.optionGroups.map((g) => ({
@@ -111,6 +135,11 @@ export async function findRuleSet(
       required: g.required,
       singleSelect: g.singleSelect,
       dependsOnGroupId: g.dependsOnGroupId,
+      dependsOnOptionCode: g.dependsOnOptionCode,
+      dependsOnOptionId: resolvePrerequisiteOption(
+        g.dependsOnGroupId,
+        g.dependsOnOptionCode,
+      ),
     })),
     options,
     discounts,

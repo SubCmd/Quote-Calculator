@@ -16,6 +16,8 @@ const oneshot: RuleSet = {
       required: false,
       singleSelect: false,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
   ],
   options: [
@@ -253,6 +255,8 @@ describe("findBundleSuggestions - 선택 제약 (ADR-0010)", () => {
           required: false,
           singleSelect: false,
           dependsOnGroupId: null,
+          dependsOnOptionCode: null,
+          dependsOnOptionId: null,
         },
         {
           id: "grp-extra",
@@ -260,6 +264,8 @@ describe("findBundleSuggestions - 선택 제약 (ADR-0010)", () => {
           required: false,
           singleSelect: false,
           dependsOnGroupId: "grp-analysis",
+          dependsOnOptionCode: null,
+          dependsOnOptionId: null,
         },
       ],
       options: [

@@ -23,6 +23,14 @@ export interface CatalogGroup extends Description {
   selectAll: boolean;
   /** 이 그룹을 고르기 전에 선택이 있어야 하는 그룹 (ADR-0010) */
   dependsOnGroupId: string | null;
+  /**
+   * 선행이 옵션 하나로 좁혀진 그룹의 선행 옵션. null 이면 그룹에 선택이 있으면 충족 (ADR-0044)
+   * **`code` 가 있는데 `id` 가 null 이면 해석 실패**이고 그 그룹은 열리지 않는다.
+   */
+  dependsOnOptionCode: string | null;
+  dependsOnOptionId: string | null;
+  /** 잠금 사유에 적을 이름. 화면이 만들지 않는다 */
+  dependsOnOptionName: string | null;
   options: CatalogOption[];
 }
 
@@ -56,31 +64,50 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
     },
   });
 
-  return products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    groups: p.optionGroups.map((g) => {
-      const descriptionByCode = new Map(
-        g.optionDescriptions.map((d) => [d.optionCode, d]),
-      );
-      return {
-        id: g.id,
-        name: g.name,
-        required: g.required,
-        singleSelect: g.singleSelect,
-        selectAll: g.selectAll,
-        dependsOnGroupId: g.dependsOnGroupId,
-        summary: g.summary,
-        detail: g.detail,
-        options: latestPerKey(g.options, (o) => o.code)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((o) => ({
-            id: o.id,
-            name: o.name,
-            summary: descriptionByCode.get(o.code)?.summary ?? null,
-            detail: descriptionByCode.get(o.code)?.detail ?? null,
-          })),
-      };
-    }),
-  }));
+  return products.map((p) => {
+    // 선행 옵션은 코드로 저장돼 있다. 같은 상품 안에서 유효한 버전으로 해석한다. (ADR-0044)
+    const latestByGroupId = new Map(
+      p.optionGroups.map((g) => [
+        g.id,
+        new Map(latestPerKey(g.options, (o) => o.code).map((o) => [o.code, o])),
+      ]),
+    );
+
+    return {
+      id: p.id,
+      name: p.name,
+      groups: p.optionGroups.map((g) => {
+        const descriptionByCode = new Map(
+          g.optionDescriptions.map((d) => [d.optionCode, d]),
+        );
+        const prerequisiteOption =
+          g.dependsOnGroupId !== null && g.dependsOnOptionCode !== null
+            ? (latestByGroupId
+                .get(g.dependsOnGroupId)
+                ?.get(g.dependsOnOptionCode) ?? null)
+            : null;
+        return {
+          id: g.id,
+          name: g.name,
+          required: g.required,
+          singleSelect: g.singleSelect,
+          selectAll: g.selectAll,
+          dependsOnGroupId: g.dependsOnGroupId,
+          dependsOnOptionCode: g.dependsOnOptionCode,
+          dependsOnOptionId: prerequisiteOption?.id ?? null,
+          dependsOnOptionName: prerequisiteOption?.name ?? null,
+          summary: g.summary,
+          detail: g.detail,
+          options: latestPerKey(g.options, (o) => o.code)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((o) => ({
+              id: o.id,
+              name: o.name,
+              summary: descriptionByCode.get(o.code)?.summary ?? null,
+              detail: descriptionByCode.get(o.code)?.detail ?? null,
+            })),
+        };
+      }),
+    };
+  });
 }

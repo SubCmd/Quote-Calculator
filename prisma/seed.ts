@@ -35,6 +35,8 @@ type GroupSeed = {
   selectAll?: boolean;
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹의 코드 (ADR-0010)
   dependsOn?: string;
+  /// 선행 그룹에서 골라야 하는 **옵션** 코드. 없으면 그룹에 선택이 있으면 충족 (ADR-0044)
+  dependsOnOption?: string;
   options: OptionSeed[];
 };
 
@@ -161,6 +163,33 @@ function numberedStages(text: StageText[], amounts: number[]): OptionSeed[] {
       detail: stage.detail,
     };
   });
+}
+
+/**
+ * 파이널콜은 두 상품에 같은 이름·금액·문구로 들어간다. 다른 것은 선행 단계뿐이다. (ADR-0044)
+ * 고2는 6단계, 고3은 4단계이고 둘 다 수시 6장 최종 지원전략 상담이다.
+ * 지원할 대학을 정하지 않은 고객에게 경쟁률을 분석할 대상이 없다.
+ *
+ * 단계와 **다른 그룹**이다. 같은 그룹에 두면 `모두 선택` 버튼이 함께 켠다. (ADR-0043)
+ */
+function finalcallGroup(dependsOnOption: string): GroupSeed {
+  return {
+    code: "FINALCALL",
+    name: "경쟁률 분석",
+    required: false,
+    singleSelect: false,
+    dependsOn: "STAGE",
+    dependsOnOption,
+    options: [
+      {
+        code: "FINALCALL",
+        name: "대학교 경쟁률 분석 (파이널콜)",
+        amount: 490_000,
+        summary:
+          "대학교와 학과의 경쟁률을 분석해서 더 유리한 곳으로 추천해주는 프로그램",
+      },
+    ],
+  };
 }
 
 function allStagesCondition(count: number) {
@@ -326,6 +355,7 @@ const PRODUCTS: ProductSeed[] = [
         selectAll: true,
         options: numberedStages(ALLSTORY_STAGE_TEXT, ALLSTORY_G2_AMOUNTS),
       },
+      finalcallGroup("STAGE_6"),
     ],
     discounts: [
       {
@@ -358,6 +388,7 @@ const PRODUCTS: ProductSeed[] = [
           ALLSTORY_G3_AMOUNTS,
         ),
       },
+      finalcallGroup("STAGE_4"),
     ],
     discounts: [
       {
@@ -392,6 +423,19 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
         `${seed.code}: 선행 그룹 '${group.dependsOn}' 을 앞에서 찾을 수 없습니다.`,
       );
     }
+    // 선행 옵션 코드가 틀리면 그 그룹은 조용히 잠긴 채로 남는다. (ADR-0044)
+    // 해석 실패를 닫힌 쪽으로 처리하기 때문에 화면에 오류가 보이지 않는다. 여기서 잡는다.
+    if (group.dependsOnOption) {
+      const prerequisite = seed.groups.find((g) => g.code === group.dependsOn);
+      const found = prerequisite?.options.some(
+        (o) => o.code === group.dependsOnOption,
+      );
+      if (!found) {
+        throw new Error(
+          `${seed.code}: 선행 옵션 '${group.dependsOn}/${group.dependsOnOption}' 을 찾을 수 없습니다.`,
+        );
+      }
+    }
 
     const created = await prisma.optionGroup.create({
       data: {
@@ -402,6 +446,7 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
         singleSelect: group.singleSelect,
         selectAll: group.selectAll ?? false,
         dependsOnGroupId,
+        dependsOnOptionCode: group.dependsOnOption ?? null,
         sortOrder: groupIndex + 1,
         options: {
           create: group.options.map((option, optionIndex) => ({

@@ -18,6 +18,8 @@ const oneshot: RuleSet = {
       required: false,
       singleSelect: false,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
   ],
   options: [
@@ -67,6 +69,8 @@ const course: RuleSet = {
       required: false,
       singleSelect: true,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
     {
       id: "grp-channel",
@@ -74,6 +78,8 @@ const course: RuleSet = {
       required: false,
       singleSelect: true,
       dependsOnGroupId: "grp-sessions",
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
     {
       id: "grp-assignment",
@@ -81,6 +87,8 @@ const course: RuleSet = {
       required: false,
       singleSelect: true,
       dependsOnGroupId: "grp-sessions",
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
     // 선행이 있으면서 복수 선택인 유일한 그룹이다. (ADR-0027)
     {
@@ -89,6 +97,8 @@ const course: RuleSet = {
       required: false,
       singleSelect: false,
       dependsOnGroupId: "grp-sessions",
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
   ],
   options: [
@@ -160,15 +170,37 @@ const allstoryG2: RuleSet = {
       required: false,
       singleSelect: false,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
+    },
+    // 6단계(수시 6장 최종 지원전략)를 골라야 열린다. 단계 그룹에 선택이 있는 것으로는
+    // 충족되지 않는다. (ADR-0044)
+    {
+      id: "grp-finalcall",
+      name: "경쟁률 분석",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: "grp-stage",
+      dependsOnOptionCode: "STAGE_6",
+      dependsOnOptionId: "opt-st6",
     },
   ],
-  options: STAGE_AMOUNTS.map((amount, i) => ({
-    id: `opt-st${i + 1}`,
-    groupId: "grp-stage",
-    name: `${i + 1}단계`,
-    amount,
-    versionId: `v-st${i + 1}`,
-  })),
+  options: [
+    ...STAGE_AMOUNTS.map((amount, i) => ({
+      id: `opt-st${i + 1}`,
+      groupId: "grp-stage",
+      name: `${i + 1}단계`,
+      amount,
+      versionId: `v-st${i + 1}`,
+    })),
+    {
+      id: "opt-finalcall",
+      groupId: "grp-finalcall",
+      name: "대학교 경쟁률 분석 (파이널콜)",
+      amount: 490_000,
+      versionId: "v-finalcall",
+    },
+  ],
   discounts: [
     {
       id: "disc-all-stages",
@@ -202,15 +234,36 @@ const allstoryG3: RuleSet = {
       required: false,
       singleSelect: false,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
+    },
+    // 고3은 4단계가 그 상담이다. 금액은 고2와 같은 490,000원이다. (ADR-0044)
+    {
+      id: "grp-g3-finalcall",
+      name: "경쟁률 분석",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: "grp-g3-stage",
+      dependsOnOptionCode: "STAGE_4",
+      dependsOnOptionId: "opt-g3-st4",
     },
   ],
-  options: G3_STAGE_AMOUNTS.map((amount, i) => ({
-    id: `opt-g3-st${i + 1}`,
-    groupId: "grp-g3-stage",
-    name: `${i + 1}단계`,
-    amount,
-    versionId: `v-g3-st${i + 1}`,
-  })),
+  options: [
+    ...G3_STAGE_AMOUNTS.map((amount, i) => ({
+      id: `opt-g3-st${i + 1}`,
+      groupId: "grp-g3-stage",
+      name: `${i + 1}단계`,
+      amount,
+      versionId: `v-g3-st${i + 1}`,
+    })),
+    {
+      id: "opt-g3-finalcall",
+      groupId: "grp-g3-finalcall",
+      name: "대학교 경쟁률 분석 (파이널콜)",
+      amount: 490_000,
+      versionId: "v-g3-finalcall",
+    },
+  ],
   discounts: [
     {
       id: "disc-g3-all-stages",
@@ -237,6 +290,8 @@ const edgeCase: RuleSet = {
       required: true,
       singleSelect: true,
       dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
     },
   ],
   options: [
@@ -473,6 +528,98 @@ describe("calculate - 고2 올스토리 (docs/pricing-rules.md 9-4)", () => {
 
     expect(withoutSixth.totalAmount).toBe(1_045_000);
     expect(withoutFourth.totalAmount).toBe(1_386_000);
+  });
+});
+
+describe("calculate - 파이널콜 선행 옵션 (ADR-0044)", () => {
+  it("6단계와 파이널콜을 함께 고르면 둘이 더해진다", () => {
+    const result = ok(allstoryG2, ["opt-st6", "opt-finalcall"]);
+
+    expect(result.subtotal).toBe(980_000);
+    expect(result.totalAmount).toBe(980_000);
+  });
+
+  it("전단계에 파이널콜을 더하면 통합등록 금액에 더해진다", () => {
+    const result = ok(allstoryG2, [...STAGE_IDS, "opt-finalcall"]);
+
+    expect(result.subtotal).toBe(2_025_000);
+    expect(result.discountAmount).toBe(45_000);
+    expect(result.totalAmount).toBe(1_980_000);
+  });
+
+  it("파이널콜은 전단계 할인 조건에 들어가지 않는다", () => {
+    const withFinalcall = ok(allstoryG2, [...STAGE_IDS, "opt-finalcall"]);
+    const stagesOnly = ok(allstoryG2, STAGE_IDS);
+
+    expect(withFinalcall.discountAmount).toBe(stagesOnly.discountAmount);
+  });
+
+  it("단계를 하나도 고르지 않고 파이널콜만 고르면 위반이다", () => {
+    const result = run(allstoryG2, ["opt-finalcall"]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations[0]?.code).toBe("OPTION_PREREQUISITE_UNMET");
+    expect(result.violations[0]?.groupId).toBe("grp-finalcall");
+  });
+
+  // 그룹 단위 선행이라면 통과했을 선택이다. 선행이 옵션 하나로 좁혀진 것이 여기서 드러난다.
+  it("6단계를 빼고 1~5단계와 파이널콜을 고르면 위반이다", () => {
+    const result = run(allstoryG2, [...STAGE_IDS.slice(0, 5), "opt-finalcall"]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations[0]?.code).toBe("OPTION_PREREQUISITE_UNMET");
+  });
+
+  it("위반 사유에 선행 옵션 이름이 들어간다", () => {
+    const result = run(allstoryG2, ["opt-finalcall"]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations[0]?.message).toBe(
+      "먼저 '6단계' 을(를) 선택해 주세요.",
+    );
+  });
+
+  it("선행 옵션이 해석되지 않으면 옵션 코드 없이 거부한다", () => {
+    const unresolved: RuleSet = {
+      ...allstoryG2,
+      groups: allstoryG2.groups.map((g) =>
+        g.id === "grp-finalcall" ? { ...g, dependsOnOptionId: null } : g,
+      ),
+    };
+
+    const result = run(unresolved, ["opt-st6", "opt-finalcall"]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations[0]?.code).toBe("OPTION_PREREQUISITE_UNMET");
+    expect(result.violations[0]?.message).toBe(
+      "지금은 선택할 수 없는 항목입니다.",
+    );
+  });
+
+  it("고3은 4단계를 골라야 파이널콜이 열린다", () => {
+    const met = ok(allstoryG3, ["opt-g3-st4", "opt-g3-finalcall"]);
+    const unmet = run(allstoryG3, ["opt-g3-st1", "opt-g3-finalcall"]);
+
+    expect(met.totalAmount).toBe(1_080_000);
+    expect(unmet.ok).toBe(false);
+    if (unmet.ok) return;
+    expect(unmet.violations[0]?.code).toBe("OPTION_PREREQUISITE_UNMET");
+  });
+
+  it("고3 전단계에 파이널콜을 더하면 통합등록 금액에 더해진다", () => {
+    const result = ok(allstoryG3, [...G3_STAGE_IDS, "opt-g3-finalcall"]);
+
+    expect(result.totalAmount).toBe(1_640_000);
+  });
+
+  it("파이널콜을 고르지 않은 것은 위반이 아니다", () => {
+    const result = ok(allstoryG2, ["opt-st6"]);
+
+    expect(result.totalAmount).toBe(490_000);
   });
 });
 

@@ -45,7 +45,33 @@ function hasSelection(group: CatalogGroup, optionIds: string[]): boolean {
 }
 
 /**
- * 선행 그룹이 비어 버린 그룹의 선택을 지운다. (ADR-0010)
+ * 선행 조건이 충족됐는지. 서버 검증과 같은 판단을 화면에서도 한다. (ADR-0003)
+ *
+ * 선행 옵션이 지정된 그룹은 **그 옵션**이 선택되어야 한다. (ADR-0044)
+ * 코드가 있는데 id 가 없으면 해석 실패이고 열리지 않는다.
+ */
+function prerequisiteMet(
+  group: CatalogGroup,
+  groups: CatalogGroup[],
+  optionIds: string[],
+): boolean {
+  if (group.dependsOnGroupId === null) return true;
+
+  const prerequisite = groups.find((p) => p.id === group.dependsOnGroupId);
+  if (prerequisite === undefined) return false;
+
+  if (group.dependsOnOptionCode !== null) {
+    return (
+      group.dependsOnOptionId !== null &&
+      optionIds.includes(group.dependsOnOptionId)
+    );
+  }
+
+  return hasSelection(prerequisite, optionIds);
+}
+
+/**
+ * 선행 조건이 깨진 그룹의 선택을 지운다. (ADR-0010)
  * A→B→C 처럼 이어진 경우를 위해 더 지울 것이 없을 때까지 반복한다.
  */
 function pruneUnmetGroups(
@@ -55,11 +81,7 @@ function pruneUnmetGroups(
   let current = optionIds;
 
   for (;;) {
-    const kept = groups.filter((g) => {
-      if (g.dependsOnGroupId === null) return true;
-      const prerequisite = groups.find((p) => p.id === g.dependsOnGroupId);
-      return prerequisite !== undefined && hasSelection(prerequisite, current);
-    });
+    const kept = groups.filter((g) => prerequisiteMet(g, groups, current));
     const allowed = new Set(kept.flatMap((g) => g.options.map((o) => o.id)));
     const next = current.filter((id) => allowed.has(id));
 
@@ -420,8 +442,18 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
               (g) => g.id === group.dependsOnGroupId,
             );
             const locked =
-              prerequisite !== undefined &&
-              !hasSelection(prerequisite, optionIds);
+              group.dependsOnGroupId !== null &&
+              !prerequisiteMet(group, product.groups, optionIds);
+            // 선행이 옵션 하나로 좁혀진 그룹은 그 옵션 이름을 적는다. 서버가 준 값이다.
+            // 해석되지 않았으면 이름이 없고, 코드를 화면에 내보내지 않는다. (ADR-0044)
+            const lockHint =
+              group.dependsOnOptionCode !== null
+                ? group.dependsOnOptionName !== null
+                  ? `먼저 '${group.dependsOnOptionName}' 을(를) 선택해 주세요.`
+                  : "지금은 선택할 수 없는 항목입니다."
+                : prerequisite !== undefined
+                  ? `먼저 '${prerequisite.name}' 항목을 선택해 주세요.`
+                  : "지금은 선택할 수 없는 항목입니다.";
             return (
               <fieldset
                 key={group.id}
