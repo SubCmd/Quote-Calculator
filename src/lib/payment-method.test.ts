@@ -25,7 +25,7 @@ describe("결제 방식 목록", () => {
 
   it("각 값의 라벨을 돌려준다", () => {
     expect(paymentMethodLabel("BANK_TRANSFER")).toBe("입금");
-    expect(paymentMethodLabel("CARD")).toBe("카드결제");
+    expect(paymentMethodLabel("CARD")).toBe("카드 결제 신청");
     expect(paymentMethodLabel("CONSULTATION")).toBe("상담하기");
   });
 

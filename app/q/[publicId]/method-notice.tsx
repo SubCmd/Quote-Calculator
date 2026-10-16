@@ -25,7 +25,7 @@ export function MethodNotice({ method }: { method: PaymentMethod }) {
 
       {method === "CARD" && (
         <>
-          <h3>카드결제 안내</h3>
+          <h3>카드 결제 신청 안내</h3>
           <p>
             카드 결제 금액은 현금가에 부가세 10%가 더해진 금액입니다. 담당자가
             결제 링크를 보내드립니다. 링크를 받으시면 카드로 결제해 주세요.
