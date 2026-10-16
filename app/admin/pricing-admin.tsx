@@ -1259,6 +1259,8 @@ export function PricingAdmin({ products }: { products: Product[] }) {
             onClick={() => setProductId(p.id)}
           >
             {p.name}
+            {/* 꺼진 상품도 탭에 있다. 고객이 보는 목록과 다르다는 것을 적어 둔다. (ADR-0046) */}
+            {!p.isActive && <small> 꺼짐</small>}
           </button>
         ))}
       </div>
@@ -1333,7 +1335,9 @@ export function PricingAdmin({ products }: { products: Product[] }) {
 
         <section className="card">
           <h2>옵션 추가</h2>
-          <NewOptionForm product={product} />
+          {/* 탭을 바꾸면 다시 마운트한다. `key` 가 없으면 고른 그룹 코드가 앞 상품 것으로
+              남아서 저장 버튼이 열리지 않는다. (묶음 추가 폼과 같은 이유) */}
+          <NewOptionForm key={`new-option-${product.id}`} product={product} />
         </section>
 
         {product.inactiveOptions.length > 0 && (
@@ -1462,7 +1466,11 @@ export function PricingAdmin({ products }: { products: Product[] }) {
           바뀝니다.
         </p>
         <OrderList
-          items={products.map((p) => ({ key: p.code, label: p.name }))}
+          items={products.map((p) => ({
+            key: p.code,
+            label: p.name,
+            note: p.isActive ? undefined : "꺼짐",
+          }))}
           onSave={(productCodes) =>
             postJson("/api/admin/pricing", {
               kind: "reorder-products",

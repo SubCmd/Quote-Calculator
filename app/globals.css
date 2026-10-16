@@ -2092,6 +2092,78 @@ p.notice-digest {
   color: var(--muted);
 }
 
+/* 상품 설계 (ADR-0046). 비활성 상품도 목록에 있어서 상태를 한눈에 읽혀야 한다. */
+.design-product {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.875rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.design-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.design-head h3 {
+  margin: 0;
+}
+.design-head .hint {
+  margin: 0.25rem 0 0;
+}
+.design-code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.design-activate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+.design-activate .hint,
+.design-activate .form-error {
+  margin: 0;
+  max-width: 20rem;
+  text-align: right;
+}
+.design-groups {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+}
+.design-groups li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding-top: 0.375rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+}
+.design-groups .hint {
+  margin: 0;
+}
+.design-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.design-flags label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+}
+
 /* 인쇄물에는 견적서만 남는다. 버튼과 화면 장식은 빠진다. */
 @media print {
   @page {

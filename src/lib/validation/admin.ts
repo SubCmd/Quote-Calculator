@@ -31,6 +31,25 @@ const newOptionCode = z
     message: "옵션 코드는 대문자로 시작하고 대문자·숫자·밑줄만 쓸 수 있습니다.",
   });
 
+/**
+ * 새로 만드는 상품·단계의 코드. 옵션 코드와 같은 형식이고 불변이다. (ADR-0046 §3)
+ * 한글로 받지 않는다. 스크립트·쿼리·로그에 같은 글자가 나와야 한다.
+ */
+const newStructureCode = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .regex(/^[A-Z][A-Z0-9_]*$/, {
+    message: "코드는 대문자로 시작하고 대문자·숫자·밑줄만 쓸 수 있습니다.",
+  });
+
+const structureName = z
+  .string()
+  .trim()
+  .min(1, { message: "이름을 입력하세요." })
+  .max(100, { message: "이름이 너무 깁니다." });
+
 /** 이름과 금액을 함께 담은 새 버전. `code` 는 받지 않는다. 불변이다. (ADR-0023) */
 export const optionVersionSchema = z.object({
   productId: z.string().min(1),
@@ -157,6 +176,52 @@ export const removeBundleSchema = z.object({
   productId: z.string().min(1),
   groupCode: z.string().min(1),
   optionCode: z.string().min(1),
+});
+
+/**
+ * 상품(상위 탭) 신설. (ADR-0046 §2, §4)
+ * `isActive` 도 `sortOrder` 도 받지 않는다. 비활성으로 태어나고 맨 뒤에 붙는다.
+ */
+export const createProductSchema = z.object({
+  code: newStructureCode,
+  name: structureName,
+});
+
+/**
+ * 단계(그룹) 신설. (ADR-0046 §5)
+ * 선행 그룹이 같은 상품인지와 선행 옵션 코드가 실제로 있는지는 상품을 읽어야 알므로
+ * Repository 가 판정한다. 여기서는 모양과 **함께 켤 수 없는 조합**만 본다.
+ */
+export const createGroupSchema = z
+  .object({
+    productId: z.string().min(1),
+    code: newStructureCode,
+    name: structureName,
+    required: z.boolean(),
+    singleSelect: z.boolean(),
+    selectAll: z.boolean(),
+    dependsOnGroupId: z.string().trim().min(1).nullable(),
+    dependsOnOptionCode: z.string().trim().min(1).max(40).nullable(),
+  })
+  // 선행 그룹 없이 선행 옵션 코드만 있는 행은 뜻이 없다. (ADR-0044)
+  .refine(
+    (value) =>
+      value.dependsOnOptionCode === null || value.dependsOnGroupId !== null,
+    {
+      message: "선행 옵션을 지정하려면 선행 단계도 골라야 합니다.",
+      path: ["dependsOnGroupId"],
+    },
+  )
+  // 하나만 고르는 그룹에 전체 선택 버튼은 뜻이 성립하지 않는다. (ADR-0043 §2)
+  .refine((value) => !(value.selectAll && value.singleSelect), {
+    message: "단일 선택 단계에는 전체 선택 버튼을 둘 수 없습니다.",
+    path: ["selectAll"],
+  });
+
+/** 상품 활성화·비활성화. 판정은 `canSetProductActive` 가 한다. (ADR-0046 §2) */
+export const setProductActiveSchema = z.object({
+  productId: z.string().min(1),
+  active: z.boolean(),
 });
 
 export const previewSchema = z.object({

@@ -49,13 +49,16 @@ function auditEntry(input: AuditInput) {
  *
  * 목록이 하나뿐이라 감사 기록의 `targetId` 도 하나로 고정한다. 탭 순서 변경 이력이
  * 한 줄에 모여야 "누가 언제 탭을 옮겼나" 를 한 번에 읽을 수 있다.
+ *
+ * **꺼진 상품도 순열에 들어간다.** (ADR-0046 §2) 꺼진 옵션을 빼지 않는 것과 같은 이유로
+ * 되살렸을 때 자리가 유지돼야 하고, 화면 목록과 범위가 어긋나면 전체 순열 검증이 통과하지
+ * 못해 순서를 아예 바꿀 수 없게 된다.
  */
 export async function reorderProducts(
   productCodes: string[],
   actor: string,
 ): Promise<ReorderResult> {
   const products = await prisma.product.findMany({
-    where: { isActive: true },
     orderBy: { sortOrder: "asc" },
     select: { code: true, name: true },
   });

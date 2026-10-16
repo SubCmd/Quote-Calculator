@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isAdmin, isAdminConfigured } from "@/lib/auth";
+import { getProductDesign } from "@/services/admin/product-design";
 import {
   getAuditLog,
   getPricingAdminView,
 } from "@/services/admin/pricing-admin";
 import { PricingAdmin } from "./pricing-admin";
+import { ProductDesign } from "./product-design";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +18,9 @@ export default async function AdminPage() {
   // 미들웨어는 쿠키 존재만 본다. 서명 검증은 여기서 한다. (ADR-0011)
   if (!(await isAdmin(now))) redirect("/admin/login");
 
-  const [products, auditLog] = await Promise.all([
+  const [products, design, auditLog] = await Promise.all([
     getPricingAdminView(now),
+    getProductDesign(),
     getAuditLog(1),
   ]);
 
@@ -47,6 +50,9 @@ export default async function AdminPage() {
       </header>
       <main>
         <PricingAdmin products={products} />
+
+        {/* 상위 탭을 만드는 자리. 비활성 상품도 보여야 하므로 탭 바깥이다. (ADR-0046) */}
+        <ProductDesign products={design} />
 
         <section className="audit">
           <h2>변경 이력</h2>

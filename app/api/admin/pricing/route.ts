@@ -1,8 +1,10 @@
-import { NextResponse } from 'next/server';
-import { isAdmin } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import { isAdmin } from "@/lib/auth";
 import {
   addBundleSchema,
+  createGroupSchema,
   createOptionSchema,
+  createProductSchema,
   deactivateDiscountSchema,
   deactivateOptionSchema,
   discountVersionSchema,
@@ -14,7 +16,13 @@ import {
   reorderOptionsSchema,
   removeBundleSchema,
   reorderProductsSchema,
-} from '@/lib/validation/admin';
+  setProductActiveSchema,
+} from "@/lib/validation/admin";
+import {
+  createGroup,
+  createProduct,
+  setProductActive,
+} from "@/services/admin/product-design";
 import {
   addBundle,
   createOption,
@@ -29,9 +37,9 @@ import {
   saveGroupDescription,
   saveOptionDescription,
   saveOptionVersion,
-} from '@/services/admin/pricing-admin';
+} from "@/services/admin/pricing-admin";
 
-const ACTOR = 'admin';
+const ACTOR = "admin";
 
 /**
  * 가격 규칙 새 버전 추가. 기존 행을 UPDATE 하지 않는다. (ADR-0002)
@@ -40,16 +48,23 @@ const ACTOR = 'admin';
 export async function POST(request: Request) {
   const now = new Date();
   if (!(await isAdmin(now))) {
-    return NextResponse.json({ ok: false, error: '권한이 없습니다.' }, { status: 403 });
+    return NextResponse.json(
+      { ok: false, error: "권한이 없습니다." },
+      { status: 403 },
+    );
   }
 
   const body = await request.json();
 
-  if (body?.kind === 'option') {
+  if (body?.kind === "option") {
     const parsed = optionVersionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error: "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -57,33 +72,48 @@ export async function POST(request: Request) {
     try {
       await saveOptionVersion(parsed.data, ACTOR, now);
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: true });
   }
 
-  if (body?.kind === 'discount') {
+  if (body?.kind === "discount") {
     const parsed = discountVersionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error: "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
     try {
       await saveDiscountVersion(parsed.data, ACTOR, now);
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: true });
   }
 
   // 기존 그룹 안에만 만든다. 같은 코드가 꺼진 것으로라도 있으면 거부한다. (ADR-0023)
-  if (body?.kind === 'create-option') {
+  if (body?.kind === "create-option") {
     const parsed = createOptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -91,17 +121,24 @@ export async function POST(request: Request) {
       await createOption(parsed.data, ACTOR, now);
     } catch (error) {
       // 코드 중복은 관리자가 고칠 수 있는 입력 오류다. 500 으로 숨기지 않는다.
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: true });
   }
 
   // 삭제가 아니라 비활성화다. 조건으로 쓰이는 할인도 함께 꺼진다. (ADR-0017)
-  if (body?.kind === 'deactivate-option') {
+  if (body?.kind === "deactivate-option") {
     const parsed = deactivateOptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error: "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -110,11 +147,15 @@ export async function POST(request: Request) {
   }
 
   // 비활성화의 역. 조건이 전부 충족되는 할인만 함께 되살린다. (ADR-0023)
-  if (body?.kind === 'reactivate-option') {
+  if (body?.kind === "reactivate-option") {
     const parsed = reactivateOptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error: "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -123,11 +164,15 @@ export async function POST(request: Request) {
   }
 
   // 할인만 끈다. 조건 옵션은 건드리지 않는다. 옵션 비활성화와 방향이 다르다. (ADR-0026)
-  if (body?.kind === 'deactivate-discount') {
+  if (body?.kind === "deactivate-discount") {
     const parsed = deactivateDiscountSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error: "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -135,16 +180,24 @@ export async function POST(request: Request) {
       const result = await deactivateDiscount(parsed.data, ACTOR);
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
   // 표시 순서는 전체 순열로 받는다. 누락·중복은 관리자가 고칠 수 있는 입력 오류다. (ADR-0026)
-  if (body?.kind === 'reorder-products') {
+  if (body?.kind === "reorder-products") {
     const parsed = reorderProductsSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -152,15 +205,23 @@ export async function POST(request: Request) {
       const result = await reorderProducts(parsed.data.productCodes, ACTOR);
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
-  if (body?.kind === 'reorder-groups') {
+  if (body?.kind === "reorder-groups") {
     const parsed = reorderGroupsSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -168,15 +229,23 @@ export async function POST(request: Request) {
       const result = await reorderGroups(parsed.data, ACTOR);
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
-  if (body?.kind === 'reorder-options') {
+  if (body?.kind === "reorder-options") {
     const parsed = reorderOptionsSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -184,49 +253,73 @@ export async function POST(request: Request) {
       const result = await reorderOptions(parsed.data, ACTOR);
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
   // 설명 문구는 덮어쓰기다. 새 버전을 만들지 않고 적용 시작 시각도 받지 않는다. (ADR-0025)
-  if (body?.kind === 'group-description') {
+  if (body?.kind === "group-description") {
     const parsed = groupDescriptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
     try {
       await saveGroupDescription(parsed.data, ACTOR);
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: true });
   }
 
-  if (body?.kind === 'option-description') {
+  if (body?.kind === "option-description") {
     const parsed = optionDescriptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
     try {
       await saveOptionDescription(parsed.data, ACTOR);
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
     return NextResponse.json({ ok: true });
   }
 
   // 묶음 관계는 추가와 삭제뿐이다. 수정 액션을 만들지 않는다. (ADR-0038)
-  if (body?.kind === 'add-bundle') {
+  if (body?.kind === "add-bundle") {
     const parsed = addBundleSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -235,15 +328,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
       // 없는 코드·중복 관계는 관리자가 고칠 수 있는 입력 오류다. 500 으로 숨기지 않는다.
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
-  if (body?.kind === 'remove-bundle') {
+  if (body?.kind === "remove-bundle") {
     const parsed = removeBundleSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.', issues: parsed.error.issues },
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
         { status: 400 },
       );
     }
@@ -251,9 +352,90 @@ export async function POST(request: Request) {
       const result = await removeBundle(parsed.data, ACTOR);
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {
-      return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
     }
   }
 
-  return NextResponse.json({ ok: false, error: '대상이 올바르지 않습니다.' }, { status: 400 });
+  // 상품 설계. 금액을 만들지 않으므로 적용 시작 시각도 미리보기도 없다. (ADR-0046)
+  if (body?.kind === "create-product") {
+    const parsed = createProductSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
+        { status: 400 },
+      );
+    }
+    try {
+      await createProduct(parsed.data, ACTOR);
+    } catch (error) {
+      // 코드 중복은 관리자가 고칠 수 있는 입력 오류다. 500 으로 숨기지 않는다.
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  if (body?.kind === "create-group") {
+    const parsed = createGroupSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
+        { status: 400 },
+      );
+    }
+    try {
+      await createGroup(parsed.data, ACTOR);
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // 켤 수 있는지 판정은 `canSetProductActive` 하나다. 화면 비활성에 맡기지 않는다. (ADR-0046)
+  if (body?.kind === "set-product-active") {
+    const parsed = setProductActiveSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            parsed.error.issues[0]?.message ?? "입력값이 올바르지 않습니다.",
+          issues: parsed.error.issues,
+        },
+        { status: 400 },
+      );
+    }
+    try {
+      await setProductActive(parsed.data, ACTOR);
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, error: (error as Error).message },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  return NextResponse.json(
+    { ok: false, error: "대상이 올바르지 않습니다." },
+    { status: 400 },
+  );
 }

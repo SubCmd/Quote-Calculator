@@ -75,6 +75,8 @@ export interface AdminProductView {
   id: string;
   code: string;
   name: string;
+  /** 꺼진 상품도 이 목록에 있다. 탭에 `꺼짐` 을 적는 데 쓴다. (ADR-0046 §2) */
+  isActive: boolean;
   groups: AdminGroupRow[];
   options: AdminOptionRow[];
   inactiveOptions: AdminInactiveOptionRow[];
@@ -89,12 +91,14 @@ export interface AdminProductView {
  * 비활성화는 같은 코드의 모든 버전을 함께 끄므로(ADR-0017) 코드 단위로 활성/비활성이 갈린다.
  * 섞인 상태가 없어서 최신 버전 행의 플래그로 그 코드 전체를 판정할 수 있다.
  * 고객 화면이 쓰는 `findRuleSet` 은 여전히 활성만 읽는다. 여기만 넓다.
+ *
+ * **꺼진 상품도 읽는다.** (ADR-0046 §2) 새 상품은 비활성으로 태어나므로, 활성만 읽으면
+ * 방금 만든 상품에 옵션을 넣을 길이 없고 옵션이 없으면 켤 수도 없다.
  */
 export async function findPricingAdminView(
   now: Date,
 ): Promise<AdminProductView[]> {
   const products = await prisma.product.findMany({
-    where: { isActive: true },
     orderBy: { sortOrder: "asc" },
     include: {
       optionGroups: {
@@ -178,6 +182,7 @@ export async function findPricingAdminView(
       id: product.id,
       code: product.code,
       name: product.name,
+      isActive: product.isActive,
       groups: product.optionGroups.map((group) => ({
         code: group.code,
         name: group.name,

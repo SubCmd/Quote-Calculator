@@ -259,6 +259,15 @@ enum AuditAction {
   /// 고객이 이름·휴대전화번호로 자기 플랜을 찾은 기록. 결과 건수만 담는다 (ADR-0045)
   /// 조회어를 담지 않는다. 저장하지 않으면 파기할 것도 없다. 0건도 남긴다.
   QUOTE_LOOKED_UP
+  /// 상품(상위 탭) 신설. code 와 이름을 afterValue 에 담는다 (ADR-0046)
+  /// 이전값이 없으므로 beforeValue 는 비운다. 새 상품은 비활성으로 태어난다.
+  PRODUCT_CREATED
+  /// 상품 안에 단계(그룹) 신설. 그룹 code·이름과 선행 관계를 afterValue 에 담는다 (ADR-0046)
+  PRODUCT_GROUP_CREATED
+  /// 상품 활성화. 활성 옵션이 하나라도 있어야 기록될 수 있다 (ADR-0046)
+  PRODUCT_ACTIVATED
+  /// 상품 비활성화. 활성화와 한 값으로 묶지 않는다. 목록에서 방향이 바로 읽혀야 한다 (ADR-0046)
+  PRODUCT_DEACTIVATED
 }
 
 /// 관리자 로그인 **실패** 기록. 시도 제한 판정에만 쓴다. 성공은 담지 않는다. (ADR-0020)
