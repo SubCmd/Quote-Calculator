@@ -1,5 +1,5 @@
 // 규칙: .claude/rules/database.md
-// 금액은 모두 Int(원 단위, 부가세 포함). 요율은 Decimal(7,4).
+// 금액은 모두 Int(원 단위, 현금가). 요율은 Decimal(7,4). (ADR-0039)
 // 가격 규칙은 UPDATE 하지 않고 effectiveFrom 을 가진 새 행을 INSERT 한다. (ADR-0002)
 // 수량 개념이 없다. 금액은 선택한 옵션 금액의 합이다. (ADR-0008)
 
