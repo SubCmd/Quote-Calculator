@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import logo from "../public/logo.png";
 import { getCatalog } from "@/services/catalog/catalog";
 import { QuoteForm } from "./quote-form";
@@ -39,7 +40,9 @@ export default async function QuotePage() {
           </div>
           <p className="subtitle">
             원하는 항목을 고르면 금액이 바로 계산됩니다. 표시 금액은 모두
-            현금가입니다.
+            현금가입니다. 이미 요청하셨다면{" "}
+            <Link href="/q/lookup">내 컨쇼 플랜 찾기</Link> 에서 진행 상황을 볼
+            수 있습니다.
           </p>
         </div>
       </header>

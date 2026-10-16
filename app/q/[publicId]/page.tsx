@@ -174,7 +174,9 @@ export default async function SavedQuotePage({
 
           <p className="hint">
             유효기간 {formatDateTime(quote.expiresAt)}까지 · 이 주소를
-            보관하시면 언제든 다시 확인할 수 있습니다.
+            보관하시면 언제든 다시 확인할 수 있습니다. 주소를 잃어버리셨다면{" "}
+            <Link href="/q/lookup">이름과 휴대전화번호로 찾기</Link> 를 이용해
+            주세요.
           </p>
 
           <p className="sheet-actions">

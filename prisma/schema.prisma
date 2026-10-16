@@ -256,6 +256,9 @@ enum AuditAction {
   BUNDLE_ADDED
   /// 묶음 관계 삭제. 지운 구성까지 beforeValue 에 담는다. 수정이 없으므로 기록도 이 둘뿐이다 (ADR-0038)
   BUNDLE_REMOVED
+  /// 고객이 이름·휴대전화번호로 자기 플랜을 찾은 기록. 결과 건수만 담는다 (ADR-0045)
+  /// 조회어를 담지 않는다. 저장하지 않으면 파기할 것도 없다. 0건도 남긴다.
+  QUOTE_LOOKED_UP
 }
 
 /// 관리자 로그인 **실패** 기록. 시도 제한 판정에만 쓴다. 성공은 담지 않는다. (ADR-0020)
@@ -272,6 +275,24 @@ model AdminLoginAttempt {
   @@index([createdAt])
   @@index([ip, createdAt])
   @@map("admin_login_attempt")
+}
+
+/// 고객 플랜 조회 **실패** 기록. 시도 제한 판정에만 쓴다. 성공은 담지 않는다. (ADR-0045)
+/// `AdminLoginAttempt` 를 같이 쓰지 않는다. 한 테이블을 쓰면 고객의 오타가 관리자
+/// 로그인을 잠그고, 관리자 로그인 실패가 고객 조회를 잠근다. 한도도 창 길이도 다르다.
+/// 조회어(이름·전화번호)를 담지 않는다. IP 와 시각만이다.
+model QuoteLookupAttempt {
+  id String @id @default(cuid())
+  /// 요청자 IP. `CF-Connecting-IP` 하나만 읽는다. (ADR-0024)
+  /// 전체 한도를 두지 않으므로 이 값이 유일한 묶음 기준이다. (ADR-0045 §6)
+  ip String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@index([ip, createdAt])
+  @@map("quote_lookup_attempt")
 }
 
 /// 가격 규칙 변경 이력. 수정·삭제하지 않는다. 변경 트랜잭션 안에서 함께 기록한다.

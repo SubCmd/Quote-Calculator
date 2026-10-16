@@ -1,8 +1,12 @@
+import { type FailureWindow, remainingLockSeconds } from "@/lib/attempt-window";
+
 /**
  * 관리자 로그인 시도 제한. (ADR-0020)
  *
  * 공유 비밀번호 하나로 가격 규칙과 전 고객 연락처가 열리기 때문에(ADR-0011, ADR-0013)
  * 대입 공격을 횟수로 막는다. 판정은 이 파일의 순수 함수 하나에만 있다.
+ *
+ * 시간 계산은 `@/lib/attempt-window` 가 한다. 고객 플랜 조회와 같은 식이다. (ADR-0045)
  */
 
 /** 실패를 세는 구간. 잠금이 풀리는 시간도 이 길이다. */
@@ -17,11 +21,7 @@ export const IP_FAILURE_LIMIT = 5;
  */
 export const GLOBAL_FAILURE_LIMIT = 20;
 
-/** 창 안의 실패 집계. `newestAt` 은 잠금이 풀리는 시각을 구하는 데 쓴다. */
-export interface FailureWindow {
-  count: number;
-  newestAt: Date | null;
-}
+export type { FailureWindow };
 
 export type LoginLock =
   | { locked: false }
@@ -31,17 +31,8 @@ export type LoginLock =
       retryAfterSeconds: number;
     };
 
-function lockedUntil(window: FailureWindow): Date | null {
-  if (window.newestAt === null) return null;
-  return new Date(window.newestAt.getTime() + LOGIN_WINDOW_MINUTES * 60_000);
-}
-
 /**
  * 지금 로그인을 받아도 되는가. 창 안의 실패 집계만 보고 판단한다.
- *
- * 잠금은 **마지막 실패로부터** 창 길이만큼 유지된다. 창 안의 실패를 다 합쳐 세므로,
- * 그 시각이 지나면 집계가 0 이 되어 반드시 풀린다. 잠긴 동안의 시도를 기록하지 않는 것이
- * 이 보장의 전제다. 기록하면 창이 계속 새로 채워져 영구 잠금이 된다.
  *
  * 전체 한도를 IP 한도보다 먼저 보지 않는다. 같은 IP 가 한도를 넘겼다면
  * 그 IP 에게 알려줄 사실은 "네가 너무 많이 시도했다"는 쪽이 정확하다.
@@ -58,18 +49,10 @@ export function evaluateLoginLock(
   }
 
   for (const { scope, window } of breached) {
-    const until = lockedUntil(window);
-    if (until === null || until <= now) continue;
+    const seconds = remainingLockSeconds(window, LOGIN_WINDOW_MINUTES, now);
+    if (seconds === null) continue;
 
-    return {
-      locked: true,
-      scope,
-      // 1초 미만이 0 으로 내려가면 "지금 가능"처럼 보인다. 최소 1초로 올린다.
-      retryAfterSeconds: Math.max(
-        1,
-        Math.ceil((until.getTime() - now.getTime()) / 1000),
-      ),
-    };
+    return { locked: true, scope, retryAfterSeconds: seconds };
   }
 
   return { locked: false };

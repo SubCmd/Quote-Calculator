@@ -88,6 +88,20 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
   `publicId` 와 상품·금액만 적는다. 파기한 데이터를 로그로 되살리지 않는다.
 - 소프트 삭제 컬럼(`deletedAt`)을 추가하지 않는다. `hiddenAt` 과 뜻이 겹친다.
 - `CONFIRMED` 를 떠나는 전이는 같은 쿼리에서 `confirmedAt = null` 을 쓴다. (ADR-0034)
+- 고객 조회(ADR-0045)는 `customerName` · `customerPhone` **완전 일치** + `hiddenAt: null` 이다.
+  `contains` 를 쓰지 않는다. 인증 없는 공개 경로에 부분 일치를 두면 한 글자로 명단이 열린다.
+  빈 입력은 Service 보다 앞선 검증이 막는다. 빈 문자열이 `null` 과 맞아떨어지는 길을
+  만들지 않는다. (파기된 행의 연락처가 `null` 이다 — ADR-0022)
+
+## 시도 기록 테이블 (ADR-0020, ADR-0045)
+
+- `AdminLoginAttempt` 와 `QuoteLookupAttempt` 를 **따로 둔다.** 한 테이블을 쓰면 고객의
+  오타가 관리자 로그인을 잠그고, 관리자 로그인 실패가 고객 조회를 잠근다. 한도와 창
+  길이도 서로 다르다.
+- **실패만 담는다.** 성공은 기록하지 않는다. 조회어(이름·전화번호)도 담지 않는다.
+  IP 와 시각이 전부다. 보존 의무가 없으므로 창을 벗어난 행은 다음 시도가 함께 지운다.
+- 시간 계산(마지막 실패 기준 창 길이만큼 잠금, 최소 1초)은 `src/lib/attempt-window.ts`
+  한 곳이다. 같은 식을 두 번 적지 않는다.
 
 ## 쿼리
 
