@@ -57,6 +57,9 @@ model OptionGroup {
   required     Boolean  @default(false)
   /// true 면 그룹에서 1개만 고를 수 있다 (라디오). false 면 여러 개 (체크박스)
   singleSelect Boolean  @default(true) @map("single_select")
+  /// true 면 그룹 옵션을 한 번에 켜는 버튼을 둔다. 상태 없는 1회 동작이다 (ADR-0043)
+  /// 다중 선택 그룹에만 뜻이 있다. 전부 고르는 것이 말이 되는 그룹에만 켠다
+  selectAll    Boolean  @default(false) @map("select_all")
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹. null 이면 제약 없음 (ADR-0010)
   dependsOnGroupId String? @map("depends_on_group_id")
   /// 이 단계를 고르는 화면에 항상 보이는 한 줄 안내. 버전을 남기지 않고 덮어쓴다 (ADR-0025)

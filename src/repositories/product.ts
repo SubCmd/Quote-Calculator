@@ -19,6 +19,8 @@ export interface CatalogGroup extends Description {
   name: string;
   required: boolean;
   singleSelect: boolean;
+  /** true 면 그룹 옵션을 한 번에 켜는 버튼을 그린다 (ADR-0043) */
+  selectAll: boolean;
   /** 이 그룹을 고르기 전에 선택이 있어야 하는 그룹 (ADR-0010) */
   dependsOnGroupId: string | null;
   options: CatalogOption[];
@@ -66,6 +68,7 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
         name: g.name,
         required: g.required,
         singleSelect: g.singleSelect,
+        selectAll: g.selectAll,
         dependsOnGroupId: g.dependsOnGroupId,
         summary: g.summary,
         detail: g.detail,

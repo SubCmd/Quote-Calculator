@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { formatKRW } from "@/lib/money";
+import { selectAllLabel, toggleAll } from "@/lib/select-all";
 import type { CatalogProduct } from "@/services/catalog/catalog";
 import type { CalculationSuccess, Violation } from "@/services/pricing/types";
 
@@ -316,6 +317,15 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
     });
   }
 
+  // 전부 켜져 있지 않으면 전부 켜고, 전부 켜져 있으면 전부 끈다. (ADR-0043)
+  // 끄는 쪽도 pruneUnmetGroups 를 지난다. 단계를 비우면 거기 딸린 선택도 같이 지워진다.
+  function toggleAllInGroup(group: CatalogGroup) {
+    const groupOptionIds = group.options.map((o) => o.id);
+    setOptionIds((prev) =>
+      pruneUnmetGroups(product.groups, toggleAll(groupOptionIds, prev)),
+    );
+  }
+
   useEffect(() => {
     const controller = new AbortController();
     const requestId = latestRequest.current + 1;
@@ -425,11 +435,28 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                   {group.name}
                   {group.required && <span className="required-mark">*</span>}
                 </legend>
+                {/*
+                  체크박스가 아니라 버튼이다. 라벨은 자기 상태가 아니라 지금 누르면
+                  일어날 일이고, 동작과 같은 판정에서 만든다. (ADR-0043)
+                */}
+                {group.selectAll && !group.singleSelect && (
+                  <button
+                    type="button"
+                    className="select-all"
+                    onClick={() => toggleAllInGroup(group)}
+                  >
+                    {selectAllLabel(
+                      group.name,
+                      group.options.map((o) => o.id),
+                      optionIds,
+                    )}
+                  </button>
+                )}
                 <Description summary={group.summary} detail={group.detail} />
                 {locked && (
                   <p className="lock-hint">
                     <span aria-hidden="true">🔒</span>
-                    먼저 &apos;{prerequisite.name}&apos; 항목을 선택해 주세요.
+                    {lockHint}
                   </p>
                 )}
                 {group.options.map((option) => (

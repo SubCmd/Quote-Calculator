@@ -31,6 +31,8 @@ type GroupSeed = {
   name: string;
   required: boolean;
   singleSelect: boolean;
+  /// 그룹 옵션을 한 번에 켜는 버튼을 둘지. 전부 고르는 것이 말이 되는 그룹만 (ADR-0043)
+  selectAll?: boolean;
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹의 코드 (ADR-0010)
   dependsOn?: string;
   options: OptionSeed[];
@@ -320,6 +322,8 @@ const PRODUCTS: ProductSeed[] = [
         name: "단계",
         required: false,
         singleSelect: false,
+        // 전단계 등록이 가장 흔한 선택이고 전단계 할인도 있다. (ADR-0043)
+        selectAll: true,
         options: numberedStages(ALLSTORY_STAGE_TEXT, ALLSTORY_G2_AMOUNTS),
       },
     ],
@@ -347,6 +351,8 @@ const PRODUCTS: ProductSeed[] = [
         name: "단계",
         required: false,
         singleSelect: false,
+        // 고2와 같은 이유다. (ADR-0043)
+        selectAll: true,
         options: numberedStages(
           ALLSTORY_STAGE_TEXT.slice(ALLSTORY_G3_FROM),
           ALLSTORY_G3_AMOUNTS,
@@ -394,6 +400,7 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
         name: group.name,
         required: group.required,
         singleSelect: group.singleSelect,
+        selectAll: group.selectAll ?? false,
         dependsOnGroupId,
         sortOrder: groupIndex + 1,
         options: {
