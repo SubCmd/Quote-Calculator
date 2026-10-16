@@ -414,7 +414,7 @@ function NewOptionForm({ product }: { product: Product }) {
       <p className="hint">
         코드는 대문자로 시작하고 대문자·숫자·밑줄만 쓸 수 있습니다. 할인 조건이
         이 코드로 옵션을 가리키므로 나중에 바꿀 수 없습니다. 적용 시작을 비우면
-        즉시 적용입니다. 모든 금액은 부가세 포함입니다.
+        즉시 적용입니다. 모든 금액은 현금가입니다.
       </p>
       {error && <p className="form-error">{error}</p>}
     </div>

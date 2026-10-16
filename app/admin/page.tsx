@@ -33,7 +33,7 @@ export default async function AdminPage() {
             <h1>가격 규칙</h1>
             <p className="subtitle">
               금액을 바꾸면 기존 값을 덮어쓰지 않고 새 버전이 쌓입니다. 모든
-              금액은 부가세 포함입니다.
+              금액은 현금가입니다.
             </p>
           </div>
           <div className="admin-nav">

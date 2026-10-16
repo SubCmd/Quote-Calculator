@@ -135,7 +135,7 @@ export default async function AdminQuoteDetailPage({
           <dl className="total-box">
             <dt>
               총액
-              <small>부가세 포함</small>
+              <small>현금가</small>
             </dt>
             <dd>{formatKRW(quote.totalAmount)}</dd>
           </dl>

@@ -26,7 +26,7 @@ export interface OptionRule {
   id: string;
   groupId: string;
   name: string;
-  /** 선택 시 더해지는 금액(원, 부가세 포함) */
+  /** 선택 시 더해지는 금액(원, 현금가) */
   amount: number;
   versionId: string;
 }
@@ -139,7 +139,7 @@ export interface CalculationSuccess {
   discountAmount: number;
   appliedDiscount: DiscountCandidate | null;
   discountCandidates: DiscountCandidate[];
-  /** 부가세 포함 최종 금액 */
+  /** 최종 현금가 (ADR-0039) */
   totalAmount: number;
   /** 더 싼 묶음 안내. 금액에 들어가지 않는다 (ADR-0037) */
   bundleSuggestions: BundleSuggestion[];

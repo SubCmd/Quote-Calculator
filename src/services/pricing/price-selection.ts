@@ -18,7 +18,7 @@ export interface PricedSelection {
   discountAmount: number;
   appliedDiscount: DiscountCandidate | null;
   discountCandidates: DiscountCandidate[];
-  /** 부가세 포함 최종 금액 */
+  /** 최종 현금가 (ADR-0039) */
   totalAmount: number;
 }
 
