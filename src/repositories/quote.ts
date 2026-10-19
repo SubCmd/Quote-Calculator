@@ -232,7 +232,7 @@ function quoteListWhere(filter: QuoteListFilter): Prisma.QuoteWhereInput {
 
 /**
  * 관리자 목록. 무제한 조회를 만들지 않는다. (`.claude/rules/database.md`)
- * 이름·번호를 꺼내 오지만 마스킹은 Service 의 일이다. 원본은 여기서 더 나가지 않는다.
+ * 이름·번호를 그대로 꺼내 온다. 관리자 화면은 가리지 않는다. (ADR-0047)
  */
 export async function findQuoteList(
   take: number,

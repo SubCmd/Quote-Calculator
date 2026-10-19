@@ -42,7 +42,8 @@ app/
     error.tsx                관리자 경로 렌더링 예외 (확인할 곳 안내, ADR-0021)
     pricing-admin.tsx        옵션·할인 편집 + 옵션 비활성화 위젯 (Client Component)
                              묶음 관계 추가·삭제 위젯 (수정 없음, ADR-0038)
-    quotes/page.tsx          견적 목록 (상태·기간·고객명 검색 · 연락처 마스킹 · 페이지네이션)
+    quotes/page.tsx          견적 목록 (상태·기간·고객명 검색 · 연락처 전체 표시 · 페이지네이션)
+                             연락처를 가리지 않는다 (ADR-0047)
                              결제 방식 열 (ADR-0033) · 숨긴 견적 필터 (ADR-0035)
     quotes/[publicId]/       견적 상세 (연락처 전체 · 열람 로그) + 상태 변경 · 복제 위젯
                              결제 방식 · 숨기기/되돌리기 위젯 (ADR-0033, ADR-0035)
@@ -97,7 +98,7 @@ src/
   lib/
     prisma.ts                PrismaClient 싱글턴
     money.ts                 정수 금액 포맷·만분율 연산 헬퍼
-    masking.ts               목록용 연락처 마스킹 (ADR-0013)
+    masking.ts               휴대폰 하이픈 표기 (가리지 않는다, ADR-0047)
     payment-method.ts        결제 방식 목록·라벨 (클라이언트 번들에 들어가므로 lib, ADR-0033)
     order-input.ts           자리 번호 입력 검증 (순수 함수, ADR-0032)
     supplier.ts              견적서 발행처 정보 (ADR-0016) · 입금 계좌 (ADR-0019) — 둘 다 환경변수
@@ -107,7 +108,7 @@ src/
     validation/              zod 입력 스키마 (estimate · quote · admin)
 prisma/
   schema.prisma
-  seed.ts                    상품 4종. 금액은 대부분 임시값 (requirements.md Q-9)
+  seed.ts                    상품 5종. 금액은 전부 확정값 (requirements.md Q-9)
 docs/
 .claude/rules/
 ```

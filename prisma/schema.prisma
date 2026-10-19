@@ -60,6 +60,10 @@ model OptionGroup {
   /// true 면 그룹 옵션을 한 번에 켜는 버튼을 둔다. 상태 없는 1회 동작이다 (ADR-0043)
   /// 다중 선택 그룹에만 뜻이 있다. 전부 고르는 것이 말이 되는 그룹에만 켠다
   selectAll    Boolean  @default(false) @map("select_all")
+  /// true 면 고를 것이 없는 **안내 전용 단계**다 (ADR-0048)
+  /// 옵션을 가지지 않으므로 금액을 만들지 않고, `required` · `selectAll` 과 함께 켤 수 없다
+  /// 선행 그룹으로 가리킬 수 없다. 선택이 생길 수 없어서 뒤 단계가 영구히 잠긴다
+  noticeOnly   Boolean  @default(false) @map("notice_only")
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹. null 이면 제약 없음 (ADR-0010)
   dependsOnGroupId String? @map("depends_on_group_id")
   /// 선행 그룹에서 **이 코드의 옵션**을 골라야 충족된다. null 이면 그룹에 선택이 있으면 충족 (ADR-0044)

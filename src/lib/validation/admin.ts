@@ -200,6 +200,7 @@ export const createGroupSchema = z
     required: z.boolean(),
     singleSelect: z.boolean(),
     selectAll: z.boolean(),
+    noticeOnly: z.boolean(),
     dependsOnGroupId: z.string().trim().min(1).nullable(),
     dependsOnOptionCode: z.string().trim().min(1).max(40).nullable(),
   })
@@ -215,6 +216,16 @@ export const createGroupSchema = z
   // 하나만 고르는 그룹에 전체 선택 버튼은 뜻이 성립하지 않는다. (ADR-0043 §2)
   .refine((value) => !(value.selectAll && value.singleSelect), {
     message: "단일 선택 단계에는 전체 선택 버튼을 둘 수 없습니다.",
+    path: ["selectAll"],
+  })
+  // 고를 것이 없는 단계는 필수가 될 수 없다. 풀 수 없는 위반이 된다. (ADR-0048)
+  .refine((value) => !(value.noticeOnly && value.required), {
+    message: "안내 전용 단계는 필수로 둘 수 없습니다.",
+    path: ["required"],
+  })
+  // 켤 옵션이 없는 단계에 전체 선택 버튼을 둘 자리가 없다. (ADR-0048)
+  .refine((value) => !(value.noticeOnly && value.selectAll), {
+    message: "안내 전용 단계에는 전체 선택 버튼을 둘 수 없습니다.",
     path: ["selectAll"],
   });
 

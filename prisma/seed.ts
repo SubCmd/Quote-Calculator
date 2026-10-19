@@ -1,11 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 
 /**
- * 입시 컨설팅 상품 4종. (docs/requirements.md 3절)
+ * 입시 컨설팅 상품 5종. (docs/requirements.md 3절)
  *
  * 금액은 모두 현금가이고 원 단위 정수다. (ADR-0039)
- * 네 상품 모두 확정값이다. 임시값은 남아 있지 않다.
- * (ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030)
+ * 다섯 상품 모두 확정값이다. 임시값은 남아 있지 않다.
+ * (ADR-0026, ADR-0027, ADR-0028, ADR-0029, ADR-0030, ADR-0048)
  * 교체할 때 이 파일의 숫자만 고치면 된다. 코드 수정은 필요하지 않다.
  */
 const prisma = new PrismaClient();
@@ -33,6 +33,12 @@ type GroupSeed = {
   singleSelect: boolean;
   /// 그룹 옵션을 한 번에 켜는 버튼을 둘지. 전부 고르는 것이 말이 되는 그룹만 (ADR-0043)
   selectAll?: boolean;
+  /// 고를 것이 없는 안내 전용 단계인지. 옵션이 없고 금액을 만들지 않는다 (ADR-0048)
+  noticeOnly?: boolean;
+  /// 단계 이름 아래 항상 보이는 한 줄. 그룹 설명은 `OptionGroup` 컬럼이다 (ADR-0025)
+  summary?: string;
+  /// `<details>` 로 접히는 긴 설명
+  detail?: string;
   /// 이 그룹을 고르기 전에 선택이 있어야 하는 그룹의 코드 (ADR-0010)
   dependsOn?: string;
   /// 선행 그룹에서 골라야 하는 **옵션** 코드. 없으면 그룹에 선택이 있으면 충족 (ADR-0044)
@@ -166,19 +172,23 @@ function numberedStages(text: StageText[], amounts: number[]): OptionSeed[] {
 }
 
 /**
- * 파이널콜은 두 상품에 같은 이름·금액·문구로 들어간다. 다른 것은 선행 단계뿐이다. (ADR-0044)
+ * 파이널콜은 세 상품에 같은 이름·금액·문구로 들어간다. 다른 것은 선행 단계뿐이다. (ADR-0044)
  * 고2는 6단계, 고3은 4단계이고 둘 다 수시 6장 최종 지원전략 상담이다.
+ * 정시는 대학라인 상담이고, 셋 다 지원할 대학을 정하는 상담이다.
  * 지원할 대학을 정하지 않은 고객에게 경쟁률을 분석할 대상이 없다.
  *
  * 단계와 **다른 그룹**이다. 같은 그룹에 두면 `모두 선택` 버튼이 함께 켠다. (ADR-0043)
  */
-function finalcallGroup(dependsOnOption: string): GroupSeed {
+function finalcallGroup(
+  dependsOnGroup: string,
+  dependsOnOption: string,
+): GroupSeed {
   return {
     code: "FINALCALL",
     name: "경쟁률 분석",
     required: false,
     singleSelect: false,
-    dependsOn: "STAGE",
+    dependsOn: dependsOnGroup,
     dependsOnOption,
     options: [
       {
@@ -355,7 +365,7 @@ const PRODUCTS: ProductSeed[] = [
         selectAll: true,
         options: numberedStages(ALLSTORY_STAGE_TEXT, ALLSTORY_G2_AMOUNTS),
       },
-      finalcallGroup("STAGE_6"),
+      finalcallGroup("STAGE", "STAGE_6"),
     ],
     discounts: [
       {
@@ -388,7 +398,7 @@ const PRODUCTS: ProductSeed[] = [
           ALLSTORY_G3_AMOUNTS,
         ),
       },
-      finalcallGroup("STAGE_4"),
+      finalcallGroup("STAGE", "STAGE_4"),
     ],
     discounts: [
       {
@@ -403,6 +413,53 @@ const PRODUCTS: ProductSeed[] = [
         conditions: allStagesCondition(4),
       },
     ],
+  },
+  {
+    // 정시는 단계가 순서대로 진행되고 각 단계가 따로 선택된다. 올스토리처럼 한 그룹에
+    // 묶지 않는다. 사이에 고를 것이 없는 안내 단계가 끼기 때문이다. (ADR-0048)
+    code: "JEONGSI",
+    name: "정시 상담",
+    groups: [
+      {
+        code: "STEP1",
+        name: "1단계 (유선상담)",
+        required: false,
+        singleSelect: false,
+        options: [
+          {
+            code: "STEP1",
+            name: "1단계 유선상담 (30~60분)",
+            amount: 89_000,
+          },
+        ],
+      },
+      {
+        // 고를 것이 없다. 그래도 자리를 남겨 그 단계가 있다는 것을 보여준다. (ADR-0048)
+        code: "QUESTIONNAIRE",
+        name: "2단계 (사전 질문지 양식 제공)",
+        required: false,
+        singleSelect: false,
+        noticeOnly: true,
+        summary:
+          "상담 전에 사전 질문지 양식을 보내 드립니다. 따로 고르실 것은 없습니다.",
+        options: [],
+      },
+      {
+        code: "LINE",
+        name: "3단계 (정시 대학라인 상담)",
+        required: false,
+        singleSelect: false,
+        options: [
+          {
+            code: "LINE",
+            name: "정시 대학라인 상담 (60~80분 비대면 zoom)",
+            amount: 490_000,
+          },
+        ],
+      },
+      finalcallGroup("LINE", "LINE"),
+    ],
+    discounts: [],
   },
 ];
 
@@ -422,6 +479,29 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
       throw new Error(
         `${seed.code}: 선행 그룹 '${group.dependsOn}' 을 앞에서 찾을 수 없습니다.`,
       );
+    }
+    // 안내 전용 단계의 불변식. 서버가 거부하는 조합을 시드로 우회하지 않는다. (ADR-0048)
+    if (group.noticeOnly) {
+      if (group.options.length > 0)
+        throw new Error(
+          `${seed.code}: 안내 전용 단계 '${group.code}' 에 옵션을 둘 수 없습니다.`,
+        );
+      if (group.required || group.selectAll)
+        throw new Error(
+          `${seed.code}: 안내 전용 단계 '${group.code}' 는 필수·모두 선택을 켤 수 없습니다.`,
+        );
+      if (!group.summary && !group.detail)
+        throw new Error(
+          `${seed.code}: 안내 전용 단계 '${group.code}' 에 설명이 없으면 빈 줄만 보입니다.`,
+        );
+    }
+    // 안내 전용 단계는 선택이 생길 수 없어서 가리킨 쪽이 영구히 잠긴다. (ADR-0048)
+    if (group.dependsOn) {
+      const prerequisite = seed.groups.find((g) => g.code === group.dependsOn);
+      if (prerequisite?.noticeOnly)
+        throw new Error(
+          `${seed.code}: 안내 전용 단계 '${group.dependsOn}' 을 선행 단계로 둘 수 없습니다.`,
+        );
     }
     // 선행 옵션 코드가 틀리면 그 그룹은 조용히 잠긴 채로 남는다. (ADR-0044)
     // 해석 실패를 닫힌 쪽으로 처리하기 때문에 화면에 오류가 보이지 않는다. 여기서 잡는다.
@@ -445,6 +525,9 @@ async function seedProduct(seed: ProductSeed, sortOrder: number) {
         required: group.required,
         singleSelect: group.singleSelect,
         selectAll: group.selectAll ?? false,
+        noticeOnly: group.noticeOnly ?? false,
+        summary: group.summary ?? null,
+        detail: group.detail ?? null,
         dependsOnGroupId,
         dependsOnOptionCode: group.dependsOnOption ?? null,
         sortOrder: groupIndex + 1,
@@ -524,9 +607,7 @@ async function main() {
   }
 
   const count = await prisma.product.count();
-  console.log(
-    `상품 ${count}건을 등록했습니다. 금액 대부분은 임시값입니다 (requirements.md Q-9).`,
-  );
+  console.log(`상품 ${count}건을 등록했습니다.`);
 }
 
 main()

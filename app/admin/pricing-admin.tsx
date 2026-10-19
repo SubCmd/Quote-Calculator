@@ -279,7 +279,9 @@ function OptionEditor({
  */
 function NewOptionForm({ product }: { product: Product }) {
   const router = useRouter();
-  const [groupCode, setGroupCode] = useState(product.groups[0]?.code ?? "");
+  // 안내 전용 단계는 옵션을 받지 않는다. 서버도 거부하므로 고를 자리를 두지 않는다. (ADR-0048)
+  const groups = product.groups.filter((g) => !g.noticeOnly);
+  const [groupCode, setGroupCode] = useState(groups[0]?.code ?? "");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("0");
@@ -290,7 +292,7 @@ function NewOptionForm({ product }: { product: Product }) {
   const nextCode = code.trim().toUpperCase();
   const nextName = name.trim();
   const nextAmount = Number(amount);
-  const group = product.groups.find((g) => g.code === groupCode);
+  const group = groups.find((g) => g.code === groupCode);
   const valid =
     group !== undefined &&
     /^[A-Z][A-Z0-9_]*$/.test(nextCode) &&
@@ -326,7 +328,7 @@ function NewOptionForm({ product }: { product: Product }) {
     setBusy(false);
   }
 
-  if (product.groups.length === 0) {
+  if (groups.length === 0) {
     return <p className="empty-note">이 상품에는 옵션 그룹이 없습니다.</p>;
   }
 
@@ -341,7 +343,7 @@ function NewOptionForm({ product }: { product: Product }) {
           value={groupCode}
           onChange={(e) => setGroupCode(e.target.value)}
         >
-          {product.groups.map((g) => (
+          {groups.map((g) => (
             <option key={g.code} value={g.code}>
               {g.name}
             </option>
@@ -1314,23 +1316,27 @@ export function PricingAdmin({ products }: { products: Product[] }) {
             }
           />
 
-          {product.groups.map((group) => (
-            <div key={group.code}>
-              <h3>{group.name} 옵션</h3>
-              <OrderList
-                key={`options-${product.id}-${group.code}`}
-                items={optionOrderItems(product, group.code)}
-                onSave={(optionCodes) =>
-                  postJson("/api/admin/pricing", {
-                    kind: "reorder-options",
-                    productId: product.id,
-                    groupCode: group.code,
-                    optionCodes,
-                  })
-                }
-              />
-            </div>
-          ))}
+          {/* 안내 전용 단계는 옵션이 없어서 순서를 매길 대상이 없다. 단계 자체는
+              위 목록에 그대로 있다. (ADR-0048) */}
+          {product.groups
+            .filter((group) => !group.noticeOnly)
+            .map((group) => (
+              <div key={group.code}>
+                <h3>{group.name} 옵션</h3>
+                <OrderList
+                  key={`options-${product.id}-${group.code}`}
+                  items={optionOrderItems(product, group.code)}
+                  onSave={(optionCodes) =>
+                    postJson("/api/admin/pricing", {
+                      kind: "reorder-options",
+                      productId: product.id,
+                      groupCode: group.code,
+                      optionCodes,
+                    })
+                  }
+                />
+              </div>
+            ))}
         </section>
 
         <section className="card">

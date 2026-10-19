@@ -280,6 +280,79 @@ const allstoryG3: RuleSet = {
   bundles: [],
 };
 
+/**
+ * 정시 상담. 단계가 각각 다른 그룹이고 사이에 **안내 전용 단계**가 끼어 있다. (ADR-0048)
+ * 안내 단계는 옵션을 가지지 않으므로 계산 레이어에는 빈 그룹으로만 보인다.
+ * 금액에 들어갈 길도 위반을 만들 길도 없다는 것이 아래 테스트가 고정하는 내용이다.
+ */
+const jeongsi: RuleSet = {
+  product: { id: "prod-js", name: "정시 상담" },
+  groups: [
+    {
+      id: "grp-js-step1",
+      name: "1단계 (유선상담)",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
+    },
+    {
+      id: "grp-js-questionnaire",
+      name: "2단계 (사전 질문지 양식 제공)",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
+    },
+    {
+      id: "grp-js-line",
+      name: "3단계 (정시 대학라인 상담)",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: null,
+      dependsOnOptionCode: null,
+      dependsOnOptionId: null,
+    },
+    // 지원할 대학을 정하는 상담이 대학라인 상담이다. (ADR-0044)
+    {
+      id: "grp-js-finalcall",
+      name: "경쟁률 분석",
+      required: false,
+      singleSelect: false,
+      dependsOnGroupId: "grp-js-line",
+      dependsOnOptionCode: "LINE",
+      dependsOnOptionId: "opt-js-line",
+    },
+  ],
+  options: [
+    {
+      id: "opt-js-step1",
+      groupId: "grp-js-step1",
+      name: "1단계 유선상담 (30~60분)",
+      amount: 89_000,
+      versionId: "v-js-step1",
+    },
+    {
+      id: "opt-js-line",
+      groupId: "grp-js-line",
+      name: "정시 대학라인 상담 (60~80분 비대면 zoom)",
+      amount: 490_000,
+      versionId: "v-js-line",
+    },
+    {
+      id: "opt-js-finalcall",
+      groupId: "grp-js-finalcall",
+      name: "대학교 경쟁률 분석 (파이널콜)",
+      amount: 490_000,
+      versionId: "v-js-finalcall",
+    },
+  ],
+  discounts: [],
+  bundles: [],
+};
+
 /** 필수 그룹과 10원 단위 버림을 검증하기 위한 가상 상품. 실제 상품에는 둘 다 없다. */
 const edgeCase: RuleSet = {
   product: { id: "prod-edge", name: "경계값 확인용" },
@@ -653,7 +726,50 @@ describe("calculate - 고3 올스토리 (docs/pricing-rules.md 9-4-1)", () => {
   });
 });
 
-describe("calculate - 선택 없음 (docs/pricing-rules.md 9-5)", () => {
+describe("calculate - 정시 상담 (docs/pricing-rules.md 9-5)", () => {
+  it("1단계와 대학라인 상담, 파이널콜을 고르면 할인 없이 소계가 총액이다", () => {
+    const result = ok(jeongsi, [
+      "opt-js-step1",
+      "opt-js-line",
+      "opt-js-finalcall",
+    ]);
+
+    expect(result.subtotal).toBe(1_069_000);
+    expect(result.discountCandidates).toHaveLength(0);
+    expect(result.discountAmount).toBe(0);
+    expect(result.totalAmount).toBe(1_069_000);
+  });
+
+  it("파이널콜을 빼면 1단계와 대학라인 상담의 합이다", () => {
+    const result = ok(jeongsi, ["opt-js-step1", "opt-js-line"]);
+
+    expect(result.totalAmount).toBe(579_000);
+  });
+
+  // 안내 전용 단계는 옵션이 없다. 금액에도 위반에도 나타날 길이 없다. (ADR-0048)
+  it("안내 전용 단계가 있어도 1단계만 고르면 그 금액 그대로다", () => {
+    const result = ok(jeongsi, ["opt-js-step1"]);
+
+    expect(result.items[0]?.appliedOptions).toHaveLength(1);
+    expect(result.totalAmount).toBe(89_000);
+  });
+
+  it("안내 전용 단계가 있어도 아무것도 고르지 않으면 위반 없이 0원이다", () => {
+    const result = ok(jeongsi, []);
+
+    expect(result.totalAmount).toBe(0);
+  });
+
+  it("대학라인 상담을 고르지 않고 파이널콜만 고르면 계산을 거부한다", () => {
+    const result = run(jeongsi, ["opt-js-finalcall"]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.violations[0]?.groupId).toBe("grp-js-finalcall");
+  });
+});
+
+describe("calculate - 선택 없음 (docs/pricing-rules.md 9-6)", () => {
   it("아무것도 선택하지 않으면 위반 없이 총액 0원을 반환한다", () => {
     const result = ok(oneshot, []);
 
@@ -689,6 +805,7 @@ describe("calculate - 10원 단위 버림 (ADR-0007)", () => {
     ["고2 올스토리 전단계", allstoryG2, STAGE_IDS],
     ["고2 올스토리 1단계", allstoryG2, ["opt-st1"]],
     ["고3 올스토리 전단계", allstoryG3, G3_STAGE_IDS],
+    ["정시 전체", jeongsi, ["opt-js-step1", "opt-js-line", "opt-js-finalcall"]],
     ["끝자리 있는 금액", edgeCase, ["opt-odd"]],
     ["선택 없음", oneshot, []],
   ])("%s 에서 총액이 10원 단위다", (_label, ruleSet, optionIds) => {

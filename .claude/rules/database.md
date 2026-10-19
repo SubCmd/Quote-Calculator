@@ -47,6 +47,11 @@ PostgreSQL + Prisma. 스키마는 `prisma/schema.prisma`.
   외래 키를 걸 수 없고 조회 시점에 해석한다. **해석되지 않으면 그 그룹을 잠근다.**
   할인 조건처럼 던지지 않는다. 조건을 못 읽을 때 과하게 파는 쪽이 아니라 팔지 않는 쪽이 안전하다.
   `dependsOnGroupId` 가 없으면 뜻이 없다. 코드만 있는 행을 만들지 않는다.
+- 고를 것이 없는 안내 단계는 `OptionGroup.noticeOnly Boolean @default(false)` 다. (ADR-0048)
+  **그룹의 성질이므로 `ProductOption` 에 두지 않는다.** 거기 두면 금액 버전마다 값을 복제한다.
+  `noticeOnly` 인 그룹에 옵션 행을 만들지 않고, `required`·`selectAll` 을 켜지 않으며,
+  다른 그룹의 `dependsOnGroupId` 가 가리키게 하지 않는다. 가리키면 영구 잠금이다.
+  이 네 불변식을 쓰기 경로마다 확인한다. 기본값이 `false` 라 백필이 없다.
 
 ## 묶음 관계 테이블 (ADR-0037)
 

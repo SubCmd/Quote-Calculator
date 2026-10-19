@@ -12,8 +12,8 @@ export interface BulkListRow {
   publicId: string;
   whenText: string;
   productName: string;
-  maskedName: string;
-  maskedPhone: string;
+  customerName: string;
+  customerPhone: string;
   totalText: string;
   paymentText: string;
   statusText: string;
@@ -150,7 +150,7 @@ export function BulkQuoteList({
                   onChange={() => toggle(row.publicId)}
                 />
                 <label htmlFor={`pick-${row.publicId}`} className="sr-only">
-                  {row.whenText} {row.maskedName} 선택
+                  {row.whenText} {row.customerName} 선택
                 </label>
               </td>
               <td className="when">
@@ -159,8 +159,8 @@ export function BulkQuoteList({
                 </Link>
               </td>
               <td>{row.productName}</td>
-              <td>{row.maskedName}</td>
-              <td className="num">{row.maskedPhone}</td>
+              <td>{row.customerName}</td>
+              <td className="num">{row.customerPhone}</td>
               <td className="num">{row.totalText}</td>
               <td>{row.paymentText}</td>
               <td>

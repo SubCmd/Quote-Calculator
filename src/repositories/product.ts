@@ -21,6 +21,8 @@ export interface CatalogGroup extends Description {
   singleSelect: boolean;
   /** true 면 그룹 옵션을 한 번에 켜는 버튼을 그린다 (ADR-0043) */
   selectAll: boolean;
+  /** true 면 고를 것이 없는 안내 단계다. 입력 없이 이름과 설명만 그린다 (ADR-0048) */
+  noticeOnly: boolean;
   /** 이 그룹을 고르기 전에 선택이 있어야 하는 그룹 (ADR-0010) */
   dependsOnGroupId: string | null;
   /**
@@ -92,6 +94,7 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
           required: g.required,
           singleSelect: g.singleSelect,
           selectAll: g.selectAll,
+          noticeOnly: g.noticeOnly,
           dependsOnGroupId: g.dependsOnGroupId,
           dependsOnOptionCode: g.dependsOnOptionCode,
           dependsOnOptionId: prerequisiteOption?.id ?? null,

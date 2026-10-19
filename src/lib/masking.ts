@@ -1,24 +1,7 @@
 /**
- * 목록 화면용 연락처 마스킹. (`.claude/rules/admin.md`)
- * 전체 값은 상세 화면에서만 보여 주고, 그때 열람 로그를 남긴다.
- * 가리는 쪽이 기본이다. 형식이 예상과 달라도 원본을 그대로 흘리지 않는다.
+ * 연락처 표기. 이름·휴대폰은 관리자 화면에서 가리지 않는다. (ADR-0047)
+ * 관리자 경로 전체가 로그인 뒤에 있고, 전화를 걸 사람이 보는 화면이다.
  */
-
-export function maskName(name: string | null): string {
-  if (!name) return "—";
-  const trimmed = name.trim();
-  if (trimmed.length <= 1) return trimmed;
-  if (trimmed.length === 2) return `${trimmed[0]}*`;
-  return `${trimmed[0]}${"*".repeat(trimmed.length - 2)}${trimmed.at(-1)}`;
-}
-
-export function maskPhone(phone: string | null): string {
-  if (!phone) return "—";
-  const digits = phone.replace(/\D/g, "");
-  // 뒤 4자리만 남긴다. 짧으면 전부 가린다.
-  if (digits.length < 8) return "*".repeat(digits.length);
-  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
-}
 
 export function maskEmail(email: string | null): string {
   if (!email) return "—";

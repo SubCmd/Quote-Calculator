@@ -30,6 +30,8 @@ const CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
 
 /** 단계 한 줄에 적는 성질. 값에서 만든다. 상품 코드로 분기하지 않는다. */
 function groupTraits(group: Group): string[] {
+  // 고를 것이 없는 단계라 필수·단일 선택을 적어 봐야 뜻이 없다. (ADR-0048)
+  if (group.noticeOnly) return ["안내 전용"];
   return [
     group.required ? "필수" : "선택",
     group.singleSelect ? "하나만" : "여러 개",
@@ -182,6 +184,7 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
   const [required, setRequired] = useState(false);
   const [singleSelect, setSingleSelect] = useState(false);
   const [selectAll, setSelectAll] = useState(false);
+  const [noticeOnly, setNoticeOnly] = useState(false);
   const [dependsOnGroupId, setDependsOnGroupId] = useState("");
   const [dependsOnOptionCode, setDependsOnOptionCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -193,13 +196,20 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
 
   const nextCode = code.trim();
   const nextName = name.trim();
-  // 하나만 고르는 단계에 전체 선택 버튼은 뜻이 성립하지 않는다. (ADR-0043 §2)
-  const conflict = selectAll && singleSelect;
+  // 함께 켤 수 없는 조합. 서버의 `createGroupSchema` 와 같은 판정이다. (ADR-0043, ADR-0048)
+  const conflict =
+    selectAll && singleSelect
+      ? "하나만 고르는 단계에는 모두 선택 버튼을 둘 수 없습니다."
+      : noticeOnly && required
+        ? "안내 전용 단계는 고를 것이 없어서 필수로 둘 수 없습니다."
+        : noticeOnly && selectAll
+          ? "안내 전용 단계에는 켤 옵션이 없어 모두 선택 버튼을 둘 수 없습니다."
+          : null;
   const valid =
     product !== undefined &&
     CODE_PATTERN.test(nextCode) &&
     nextName.length > 0 &&
-    !conflict;
+    conflict === null;
 
   function pickProduct(id: string) {
     setProductId(id);
@@ -214,11 +224,13 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
 
   async function save() {
     if (!product) return;
-    const traits = [
-      required ? "필수" : "선택",
-      singleSelect ? "하나만 고름" : "여러 개 고를 수 있음",
-      selectAll ? "모두 선택 버튼 있음" : null,
-    ].filter((trait) => trait !== null);
+    const traits = noticeOnly
+      ? ["안내 전용 (고를 것 없음)"]
+      : [
+          required ? "필수" : "선택",
+          singleSelect ? "하나만 고름" : "여러 개 고를 수 있음",
+          selectAll ? "모두 선택 버튼 있음" : null,
+        ].filter((trait) => trait !== null);
     const depends =
       prerequisite === null
         ? "· 선행 단계 없음"
@@ -239,6 +251,7 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
         required,
         singleSelect,
         selectAll,
+        noticeOnly,
         dependsOnGroupId: dependsOnGroupId === "" ? null : dependsOnGroupId,
         dependsOnOptionCode:
           dependsOnOptionCode === "" ? null : dependsOnOptionCode,
@@ -248,6 +261,7 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
       setRequired(false);
       setSingleSelect(false);
       setSelectAll(false);
+      setNoticeOnly(false);
       setDependsOnGroupId("");
       setDependsOnOptionCode("");
       router.refresh();
@@ -321,11 +335,14 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
           onChange={(e) => pickPrerequisite(e.target.value)}
         >
           <option value="">없음</option>
-          {(product?.groups ?? []).map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
+          {/* 안내 전용 단계는 선택이 생길 수 없어서 고르면 영구히 잠긴다. (ADR-0048) */}
+          {(product?.groups ?? [])
+            .filter((g) => !g.noticeOnly)
+            .map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -375,6 +392,14 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
           />
           모두 선택 버튼
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={noticeOnly}
+            onChange={(e) => setNoticeOnly(e.target.checked)}
+          />
+          안내 전용
+        </label>
       </fieldset>
 
       <button
@@ -391,11 +416,13 @@ function NewGroupForm({ products }: { products: ProductDesignRow[] }) {
         옵션까지 고르면 그 옵션 하나로 좁혀집니다. 성질과 순서는 나중에 이
         화면에서 바꿀 수 없습니다. 순서만 &lsquo;표시 순서&rsquo;에서 옮깁니다.
       </p>
-      {conflict && (
-        <p className="form-error">
-          하나만 고르는 단계에는 모두 선택 버튼을 둘 수 없습니다.
-        </p>
-      )}
+      <p className="hint">
+        &lsquo;안내 전용&rsquo; 은 고를 것이 없는 단계입니다. 이름과 설명만
+        보이고 금액에 들어가지 않습니다. 옵션을 넣을 수 없고 다른 단계의 선행
+        단계로 고를 수 없습니다. 설명이 내용 전부이므로 만든 뒤에 &lsquo;설명
+        문구&rsquo; 에서 채워 주세요. 비어 있으면 이름만 보입니다.
+      </p>
+      {conflict && <p className="form-error">{conflict}</p>}
       {error && <p className="form-error">{error}</p>}
     </div>
   );

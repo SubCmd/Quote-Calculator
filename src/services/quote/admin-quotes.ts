@@ -1,5 +1,5 @@
 import type { PaymentMethod, QuoteStatus } from "@prisma/client";
-import { formatPhone, maskName, maskPhone } from "@/lib/masking";
+import { formatPhone } from "@/lib/masking";
 import {
   deleteQuotes,
   findQuoteDetail,
@@ -28,9 +28,9 @@ export interface AdminQuoteListItem {
   publicId: string;
   /** 만료까지 반영한 표시 상태 (ADR-0012) */
   status: QuoteStatus;
-  /** 목록에서는 마스킹한 값만 내보낸다. (`.claude/rules/admin.md`) */
-  maskedName: string;
-  maskedPhone: string;
+  /** 목록도 연락처를 그대로 내보낸다. 가리지 않는다. (ADR-0047) */
+  customerName: string;
+  customerPhone: string;
   productName: string;
   totalAmount: number;
   calculatedAt: Date;
@@ -75,7 +75,7 @@ export async function listQuotes(
     search,
   );
 
-  // 이름으로 찾아본 것 자체가 개인정보 조회다. 표시는 그대로 마스킹한다. (ADR-0015)
+  // 이름으로 찾아본 것 자체가 개인정보 조회다. (ADR-0015)
   // 검색어는 넘기지 않는다. 기록할 것은 찾아봤다는 사실이다. (ADR-0022)
   if (search.customerName !== null) await logQuoteSearch(total, actor);
 
@@ -83,8 +83,8 @@ export async function listQuotes(
     items: rows.map((row) => ({
       publicId: row.publicId,
       status: displayStatus(row.status, row.expiresAt, now),
-      maskedName: maskName(row.customerName),
-      maskedPhone: maskPhone(row.customerPhone),
+      customerName: row.customerName ?? "—",
+      customerPhone: formatPhone(row.customerPhone),
       // 상품 조합은 한 번에 한 상품뿐이다. (ADR-0008 이후 결정)
       productName: row.productNames[0] ?? "—",
       totalAmount: row.totalAmount,

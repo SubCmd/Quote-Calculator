@@ -27,6 +27,8 @@ export interface ProductDesignGroupRow {
   required: boolean;
   singleSelect: boolean;
   selectAll: boolean;
+  /** 안내 전용 단계. 선행 단계 선택지에서 빠진다 (ADR-0048) */
+  noticeOnly: boolean;
   /** 선행 그룹 이름. 화면이 id 를 사람 글자로 바꾸지 않는다 */
   dependsOnGroupName: string | null;
   dependsOnOptionCode: string | null;
@@ -70,6 +72,7 @@ export async function findProductDesignView(): Promise<ProductDesignRow[]> {
         required: group.required,
         singleSelect: group.singleSelect,
         selectAll: group.selectAll,
+        noticeOnly: group.noticeOnly,
         dependsOnGroupId: group.dependsOnGroupId,
         dependsOnGroupName:
           group.dependsOnGroupId === null
@@ -155,6 +158,8 @@ export interface CreateGroupInput {
   required: boolean;
   singleSelect: boolean;
   selectAll: boolean;
+  /** 고를 것이 없는 안내 전용 단계인가. (ADR-0048) */
+  noticeOnly: boolean;
   dependsOnGroupId: string | null;
   dependsOnOptionCode: string | null;
 }
@@ -192,6 +197,12 @@ export async function createOptionGroup(
     if (!prerequisite)
       throw new Error("선행 단계는 같은 상품에 이미 있는 단계여야 합니다.");
 
+    // 안내 전용 단계에는 선택이 생길 수 없어서, 가리킨 단계가 영구히 잠긴다. (ADR-0048)
+    if (prerequisite.noticeOnly)
+      throw new Error(
+        `'${prerequisite.name}' 은 안내 전용 단계라 선행 단계로 둘 수 없습니다. 고를 것이 없어 영구히 잠깁니다.`,
+      );
+
     if (
       input.dependsOnOptionCode !== null &&
       !prerequisite.options.some(
@@ -218,6 +229,7 @@ export async function createOptionGroup(
         required: input.required,
         singleSelect: input.singleSelect,
         selectAll: input.selectAll,
+        noticeOnly: input.noticeOnly,
         dependsOnGroupId: input.dependsOnGroupId,
         dependsOnOptionCode: input.dependsOnOptionCode,
         sortOrder,
@@ -227,7 +239,9 @@ export async function createOptionGroup(
       data: {
         action: "PRODUCT_GROUP_CREATED",
         actor,
-        summary: `${product.name} 상품에 '${input.name}' 단계 추가 (${input.code})`,
+        summary:
+          `${product.name} 상품에 '${input.name}' 단계 추가 (${input.code}` +
+          `${input.noticeOnly ? ", 안내 전용" : ""})`,
         targetType: "OptionGroup",
         targetId: `${product.code}.${input.code}`,
         afterValue: {
@@ -236,6 +250,7 @@ export async function createOptionGroup(
           required: input.required,
           singleSelect: input.singleSelect,
           selectAll: input.selectAll,
+          noticeOnly: input.noticeOnly,
           dependsOnGroup: prerequisite?.code ?? null,
           dependsOnOptionCode: input.dependsOnOptionCode,
           sortOrder,

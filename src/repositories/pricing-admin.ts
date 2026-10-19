@@ -27,6 +27,8 @@ export interface AdminGroupRow {
   /** 단계 설명. 편집 대상이다. (ADR-0025) */
   summary: string | null;
   detail: string | null;
+  /** 안내 전용 단계는 옵션을 받지 않는다. 설명은 편집한다 (ADR-0048) */
+  noticeOnly: boolean;
 }
 
 /** 꺼진 옵션. 되살릴 때 함께 켜지는/켜지지 않는 할인을 미리 달고 내려간다. (ADR-0023) */
@@ -188,6 +190,7 @@ export async function findPricingAdminView(
         name: group.name,
         summary: group.summary,
         detail: group.detail,
+        noticeOnly: group.noticeOnly,
       })),
       options: latestOptions
         .filter(({ option }) => option.isActive)
@@ -417,6 +420,12 @@ export async function createOption(
   });
   if (!group)
     throw new Error(`옵션 그룹을 찾을 수 없습니다: ${input.groupCode}`);
+
+  // 안내 전용 단계에 옵션을 넣으면 안내문이 조용히 고를 수 있는 유료 단계가 된다. (ADR-0048)
+  if (group.noticeOnly)
+    throw new Error(
+      `'${group.name}' 은 안내 전용 단계라 옵션을 넣을 수 없습니다. 고를 수 있는 단계를 새로 만드세요.`,
+    );
 
   if (group.options.some((o) => o.code === input.optionCode))
     throw new Error(

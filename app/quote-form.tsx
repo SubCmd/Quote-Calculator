@@ -454,6 +454,30 @@ export function QuoteForm({ catalog }: { catalog: CatalogProduct[] }) {
                 : prerequisite !== undefined
                   ? `먼저 '${prerequisite.name}' 항목을 선택해 주세요.`
                   : "지금은 선택할 수 없는 항목입니다.";
+            // 고를 것이 없는 안내 단계. 입력도 필수 표시도 없고 금액에 들어가지
+            // 않는다. 그래도 자리는 남긴다. 숨기면 그 단계가 있는지 모른다. (ADR-0048)
+            if (group.noticeOnly)
+              return (
+                <section
+                  key={group.id}
+                  className={locked ? "notice-group locked" : "notice-group"}
+                >
+                  <p className="notice-group-title">
+                    <span className="step" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    {group.name}
+                  </p>
+                  <Description summary={group.summary} detail={group.detail} />
+                  {locked && (
+                    <p className="lock-hint">
+                      <span aria-hidden="true">🔒</span>
+                      {lockHint}
+                    </p>
+                  )}
+                </section>
+              );
+
             return (
               <fieldset
                 key={group.id}

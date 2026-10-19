@@ -90,8 +90,8 @@ export default async function AdminQuotesPage({
     publicId: item.publicId,
     whenText: item.calculatedAt.toLocaleString("ko-KR"),
     productName: item.productName,
-    maskedName: item.maskedName,
-    maskedPhone: item.maskedPhone,
+    customerName: item.customerName,
+    customerPhone: item.customerPhone,
     totalText: formatKRW(item.totalAmount),
     paymentText: item.paymentMethod
       ? paymentMethodLabel(item.paymentMethod)
