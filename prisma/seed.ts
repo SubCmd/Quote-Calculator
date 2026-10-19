@@ -418,17 +418,21 @@ const PRODUCTS: ProductSeed[] = [
     // 정시는 단계가 순서대로 진행되고 각 단계가 따로 선택된다. 올스토리처럼 한 그룹에
     // 묶지 않는다. 사이에 고를 것이 없는 안내 단계가 끼기 때문이다. (ADR-0048)
     code: "JEONGSI",
-    name: "정시 상담",
+    name: "정시 컨설팅",
     groups: [
       {
+        // 올스토리와 같은 형식이다. 이름은 번호와 소요 시간까지이고 상담 제목은
+        // 한 줄 설명으로 내려간다. (ADR-0031) 단계 이름은 번호만 담는다 — 상담 방식까지
+        // 적으면 바로 아래 옵션 줄과 같은 말이 겹친다.
         code: "STEP1",
-        name: "1단계 (유선상담)",
+        name: "1단계",
         required: false,
         singleSelect: false,
         options: [
           {
             code: "STEP1",
-            name: "1단계 유선상담 (30~60분)",
+            name: "1단계 (30~60분)",
+            summary: "학생의 현재 상황 진단 및 방향성 상담 (유선상담)",
             amount: 89_000,
           },
         ],
@@ -446,13 +450,14 @@ const PRODUCTS: ProductSeed[] = [
       },
       {
         code: "LINE",
-        name: "3단계 (정시 대학라인 상담)",
+        name: "3단계",
         required: false,
         singleSelect: false,
         options: [
           {
             code: "LINE",
-            name: "정시 대학라인 상담 (60~80분 비대면 zoom)",
+            name: "3단계 (60~80분)",
+            summary: "정시 가나다군 대학·학과 최종 지원전략 (비대면 zoom 상담)",
             amount: 490_000,
           },
         ],

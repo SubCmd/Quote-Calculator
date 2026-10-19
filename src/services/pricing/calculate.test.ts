@@ -281,12 +281,12 @@ const allstoryG3: RuleSet = {
 };
 
 /**
- * 정시 상담. 단계가 각각 다른 그룹이고 사이에 **안내 전용 단계**가 끼어 있다. (ADR-0048)
+ * 정시 컨설팅. 단계가 각각 다른 그룹이고 사이에 **안내 전용 단계**가 끼어 있다. (ADR-0048)
  * 안내 단계는 옵션을 가지지 않으므로 계산 레이어에는 빈 그룹으로만 보인다.
  * 금액에 들어갈 길도 위반을 만들 길도 없다는 것이 아래 테스트가 고정하는 내용이다.
  */
 const jeongsi: RuleSet = {
-  product: { id: "prod-js", name: "정시 상담" },
+  product: { id: "prod-js", name: "정시 컨설팅" },
   groups: [
     {
       id: "grp-js-step1",
@@ -726,7 +726,7 @@ describe("calculate - 고3 올스토리 (docs/pricing-rules.md 9-4-1)", () => {
   });
 });
 
-describe("calculate - 정시 상담 (docs/pricing-rules.md 9-5)", () => {
+describe("calculate - 정시 컨설팅 (docs/pricing-rules.md 9-5)", () => {
   it("1단계와 대학라인 상담, 파이널콜을 고르면 할인 없이 소계가 총액이다", () => {
     const result = ok(jeongsi, [
       "opt-js-step1",
