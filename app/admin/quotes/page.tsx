@@ -3,9 +3,16 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { isAdmin, isAdminConfigured } from "@/lib/auth";
 import { formatKRW } from "@/lib/money";
-import { paymentMethodLabel } from "@/lib/payment-method";
-import { listQuotes } from "@/services/quote/admin-quotes";
-import { parseSearchRange } from "@/services/quote/search-range";
+import {
+  PAYMENT_METHOD_CHOICES,
+  paymentMethodLabel,
+} from "@/lib/payment-method";
+import { listProductChoices, listQuotes } from "@/services/quote/admin-quotes";
+import {
+  type QuoteListQuery,
+  parseQuotePage,
+  parseQuoteSearch,
+} from "@/services/quote/list-query";
 import { statusLabel } from "@/services/quote/transition";
 import { BulkQuoteList, type BulkListRow } from "./bulk-list";
 
@@ -20,34 +27,10 @@ const FILTERS: { value: QuoteStatus | null; label: string }[] = [
   { value: "CANCELED", label: "취소" },
 ];
 
-/** 저장 상태만 필터로 받는다. `EXPIRED` 는 저장되지 않으므로 조건이 될 수 없다. (ADR-0012) */
-function parseStatus(raw: string | undefined): QuoteStatus | null {
-  const match = FILTERS.find((f) => f.value !== null && f.value === raw);
-  return match?.value ?? null;
-}
-
-function parsePage(raw: string | undefined): number {
-  const page = Number(raw ?? "1");
-  return Number.isInteger(page) && page > 0 ? page : 1;
-}
-
-/** 공백만 넣은 검색은 조건 없음이다. 전체 조회를 검색으로 기록하지 않는다. (ADR-0015) */
-function parseName(raw: string | undefined): string | null {
-  const name = raw?.trim();
-  return name ? name : null;
-}
-
 export default async function AdminQuotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    status?: string;
-    page?: string;
-    name?: string;
-    from?: string;
-    to?: string;
-    hidden?: string;
-  }>;
+  searchParams: Promise<QuoteListQuery>;
 }) {
   if (!isAdminConfigured()) notFound();
 
@@ -55,35 +38,47 @@ export default async function AdminQuotesPage({
   if (!(await isAdmin(now))) redirect("/admin/login");
 
   const query = await searchParams;
-  const status = parseStatus(query.status);
-  const customerName = parseName(query.name);
-  const { from, until } = parseSearchRange(query.from, query.to);
-  // 숨긴 견적은 따로 본다. 되돌릴 자리가 그 목록이다. (ADR-0035)
-  const hidden = query.hidden === "1";
+  // 조건 해석은 내보내기와 같은 함수다. 두 번 적지 않는다. (ADR-0050)
+  const search = parseQuoteSearch(query);
+  const { status, hidden, productCode, customerPhone, paymentMethod } = search;
 
-  // 이름으로 검색하면 열람 기록이 남는다.
-  const { items, total, page, pageCount } = await listQuotes(
-    parsePage(query.page),
-    { status, customerName, from, until, hidden },
-    ACTOR,
-    now,
+  // 이름·번호로 검색하면 열람 기록이 남는다.
+  const [{ items, total, page, pageCount }, productChoices] = await Promise.all(
+    [
+      listQuotes(parseQuotePage(query.page), search, ACTOR, now),
+      listProductChoices(),
+    ],
   );
 
-  const hrefWith = (overrides: Record<string, string | null>) => {
+  const queryWith = (overrides: Record<string, string | null>) => {
     const params = new URLSearchParams();
     const merged: Record<string, string | null> = {
       status,
-      name: query.name?.trim() ?? null,
+      name: search.customerName,
       from: query.from ?? null,
       to: query.to ?? null,
       hidden: hidden ? "1" : null,
+      product: productCode,
+      phone: customerPhone,
+      // 해석된 값으로 다시 만든다. 주소창의 모르는 글자를 링크로 옮기지 않는다.
+      payment: paymentMethod === "NONE" ? "none" : paymentMethod,
       ...overrides,
     };
     for (const [key, value] of Object.entries(merged))
       if (value) params.set(key, value);
-    const search = params.toString();
-    return search ? `/admin/quotes?${search}` : "/admin/quotes";
+    return params.toString();
   };
+
+  const hrefWith = (overrides: Record<string, string | null>) => {
+    const params = queryWith(overrides);
+    return params ? `/admin/quotes?${params}` : "/admin/quotes";
+  };
+
+  // 지금 보고 있는 조건 그대로 내려받는다. 페이지는 담지 않는다. (ADR-0050)
+  const exportParams = queryWith({ page: null });
+  const exportHref = exportParams
+    ? `/api/admin/quotes/export?${exportParams}`
+    : "/api/admin/quotes/export";
 
   // 금액·일시 포맷은 서버에서 끝낸다. 클라이언트가 다시 만들면 수화가 어긋난다.
   const rows: BulkListRow[] = items.map((item) => ({
@@ -93,6 +88,8 @@ export default async function AdminQuotesPage({
     customerName: item.customerName,
     customerPhone: item.customerPhone,
     totalText: formatKRW(item.totalAmount),
+    // 총계를 더하는 데 필요한 정수. 더하는 식은 `src/lib/quote-sum.ts` 에만 있다. (ADR-0049)
+    totalAmount: item.totalAmount,
     paymentText: item.paymentMethod
       ? paymentMethodLabel(item.paymentMethod)
       : "—",
@@ -114,8 +111,7 @@ export default async function AdminQuotesPage({
             <p className="brand">관리자</p>
             <h1>견적 목록</h1>
             <p className="subtitle">
-              연락처는 가려서 보여줍니다. 전체를 보려면 상세를 열어야 하고, 열람
-              기록이 남습니다.
+              줄을 골라 총계를 볼 수 있습니다. 상세를 열면 열람 기록이 남습니다.
             </p>
           </div>
           <div className="admin-nav">
@@ -145,6 +141,44 @@ export default async function AdminQuotesPage({
             />
           </div>
           <div className="search-field">
+            <label htmlFor="phone">연락처</label>
+            <input
+              id="phone"
+              name="phone"
+              type="search"
+              inputMode="numeric"
+              defaultValue={query.phone ?? ""}
+              placeholder="숫자 일부"
+            />
+          </div>
+          <div className="search-field">
+            <label htmlFor="product">상품</label>
+            <select id="product" name="product" defaultValue={productCode ?? ""}>
+              <option value="">전체</option>
+              {productChoices.map((choice) => (
+                <option key={choice.code} value={choice.code}>
+                  {choice.isActive ? choice.name : `${choice.name} (꺼짐)`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="search-field">
+            <label htmlFor="payment">결제 방식</label>
+            <select
+              id="payment"
+              name="payment"
+              defaultValue={paymentMethod === "NONE" ? "none" : paymentMethod ?? ""}
+            >
+              <option value="">전체</option>
+              {PAYMENT_METHOD_CHOICES.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label}
+                </option>
+              ))}
+              <option value="none">미선택</option>
+            </select>
+          </div>
+          <div className="search-field">
             <label htmlFor="from">시작일</label>
             <input
               id="from"
@@ -171,8 +205,9 @@ export default async function AdminQuotesPage({
             </Link>
           </div>
           <p className="hint">
-            기간은 요청 일시 기준이고 종료일 당일을 포함합니다. 고객명으로
-            검색하면 검색어가 변경 이력에 남습니다. (ADR-0015)
+            기간은 요청 일시 기준이고 종료일 당일을 포함합니다. 연락처는 하이픈
+            없이 일부만 넣어도 찾습니다. 고객명·연락처로 검색하면 찾아봤다는
+            사실이 변경 이력에 남습니다. 검색어는 남지 않습니다. (ADR-0015)
           </p>
         </form>
 
@@ -202,6 +237,19 @@ export default async function AdminQuotesPage({
             숨긴 견적입니다. 데이터는 지워지지 않았고 고객 링크만 닫혀 있습니다.
             상세를 열어 되돌릴 수 있습니다. (ADR-0035)
           </p>
+        )}
+
+        {rows.length > 0 && (
+          <div className="list-actions">
+            <a className="ghost" href={exportHref} download>
+              CSV 내보내기
+            </a>
+            <p className="hint">
+              지금 좁힌 조건의 목록을 내려받습니다. 보고 있는 페이지가 아니라
+              조건 전체이고, 금액은 엑셀이 더할 수 있는 숫자입니다. 내려받은
+              사실이 변경 이력에 남습니다. (ADR-0050)
+            </p>
+          </div>
         )}
 
         <div className="card">

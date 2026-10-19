@@ -272,6 +272,10 @@ enum AuditAction {
   PRODUCT_ACTIVATED
   /// 상품 비활성화. 활성화와 한 값으로 묶지 않는다. 목록에서 방향이 바로 읽혀야 한다 (ADR-0046)
   PRODUCT_DEACTIVATED
+  /// 목록을 CSV 로 내려받은 기록. 건수만 담는다 (ADR-0050)
+  /// 검색 조건·고객명·연락처를 담지 않는다. QUOTE_SEARCHED 와 묶지 않는다.
+  /// 읽은 것과 내려받은 것은 유출 경위를 따질 때 구분돼야 한다.
+  QUOTE_EXPORTED
 }
 
 /// 관리자 로그인 **실패** 기록. 시도 제한 판정에만 쓴다. 성공은 담지 않는다. (ADR-0020)

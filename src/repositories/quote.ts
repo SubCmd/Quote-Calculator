@@ -200,6 +200,12 @@ export interface QuoteListPage {
   total: number;
 }
 
+/**
+ * 결제 방식 조건. `"NONE"` 은 **고객이 아직 고르지 않은 건**이고 `null` 은 조건 없음이다.
+ * 둘을 한 값으로 묶으면 `미선택` 을 찾을 수 없다. (ADR-0049)
+ */
+export type PaymentMethodFilter = PaymentMethod | "NONE";
+
 /** 목록 검색 조건. 기간은 `calculatedAt` 기준이다. (ADR-0015) */
 export interface QuoteListFilter {
   status: QuoteStatus | null;
@@ -210,6 +216,11 @@ export interface QuoteListFilter {
   from: Date | null;
   /** 이 시각 **미만** */
   until: Date | null;
+  /** 이 상품이 들어간 견적만. 비활성 상품도 조건이 될 수 있다. (ADR-0049) */
+  productCode: string | null;
+  /** 연락처 숫자 부분 일치. 하이픈을 떼는 것은 Service 의 몫이다. (ADR-0049) */
+  customerPhone: string | null;
+  paymentMethod: PaymentMethodFilter | null;
 }
 
 function quoteListWhere(filter: QuoteListFilter): Prisma.QuoteWhereInput {
@@ -227,6 +238,20 @@ function quoteListWhere(filter: QuoteListFilter): Prisma.QuoteWhereInput {
           customerName: { contains: filter.customerName, mode: "insensitive" },
         }),
     ...(filter.from || filter.until ? { calculatedAt } : {}),
+    // 상품 조합은 한 번에 한 상품뿐이지만 조건은 `some` 으로 적는다. (ADR-0008 이후 결정)
+    ...(filter.productCode === null
+      ? {}
+      : { items: { some: { product: { code: filter.productCode } } } }),
+    // 번호는 숫자만 저장한다. 들어온 값도 숫자만이어야 맞는다.
+    ...(filter.customerPhone === null
+      ? {}
+      : { customerPhone: { contains: filter.customerPhone } }),
+    ...(filter.paymentMethod === null
+      ? {}
+      : {
+          paymentMethod:
+            filter.paymentMethod === "NONE" ? null : filter.paymentMethod,
+        }),
   };
 }
 
@@ -277,6 +302,67 @@ export async function findQuoteList(
       productNames: quote.items.map((item) => item.product.name),
     })),
     total,
+  };
+}
+
+export interface QuoteExportPage {
+  /** 상한을 넘으면 비어 있다. 건수만 보고 사유를 돌려준다. */
+  rows: QuoteListRow[];
+  total: number;
+  exceeded: boolean;
+}
+
+/**
+ * CSV 내보내기 조회. (ADR-0050)
+ *
+ * 목록과 **같은 `where`** 를 쓴다. 화면에서 좁힌 것과 파일에 담긴 것이 어긋나면
+ * 아무 에러도 나지 않고 담당자는 알 수 없다.
+ *
+ * 페이지가 없는 대신 **상한이 있다.** 먼저 건수를 세고 넘으면 행을 읽지 않는다.
+ * 상한 없는 `findMany` 를 두지 않는다는 규칙은 그대로다. (`.claude/rules/database.md`)
+ */
+export async function findQuotesForExport(
+  filter: QuoteListFilter,
+  limit: number,
+): Promise<QuoteExportPage> {
+  const where = quoteListWhere(filter);
+
+  const total = await prisma.quote.count({ where });
+  if (total > limit) return { rows: [], total, exceeded: true };
+
+  const rows = await prisma.quote.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      publicId: true,
+      status: true,
+      customerName: true,
+      customerPhone: true,
+      totalAmount: true,
+      calculatedAt: true,
+      expiresAt: true,
+      paymentMethod: true,
+      hiddenAt: true,
+      items: { select: { product: { select: { name: true } } } },
+    },
+  });
+
+  return {
+    rows: rows.map((quote) => ({
+      publicId: quote.publicId,
+      status: quote.status,
+      customerName: quote.customerName,
+      customerPhone: quote.customerPhone,
+      totalAmount: quote.totalAmount,
+      calculatedAt: quote.calculatedAt,
+      expiresAt: quote.expiresAt,
+      paymentMethod: quote.paymentMethod,
+      hiddenAt: quote.hiddenAt,
+      productNames: quote.items.map((item) => item.product.name),
+    })),
+    total,
+    exceeded: false,
   };
 }
 
@@ -600,6 +686,30 @@ export async function logQuoteSearch(
       actor,
       summary: `고객명으로 견적 검색 (${matched}건)`,
       targetType: "QuoteSearch",
+      targetId: "-",
+    },
+  });
+}
+
+/**
+ * CSV 내보내기 기록. (ADR-0050)
+ *
+ * `QUOTE_SEARCHED` 와 묶지 않는다. 목록에서 **읽은 것과 내려받은 것**은 유출 경위를
+ * 따질 때 구분돼야 한다. 검색 기록과 겹쳐 남기지도 않는다. 한 동작에 로그 둘이
+ * 남으면 검색 건수 집계가 거짓이 된다.
+ *
+ * 검색 조건·고객명·연락처를 담지 않는다. 건수와 시각과 누가만 남는다. (ADR-0015, ADR-0022)
+ */
+export async function logQuoteExport(
+  matched: number,
+  actor: string,
+): Promise<void> {
+  await prisma.auditLog.create({
+    data: {
+      action: "QUOTE_EXPORTED",
+      actor,
+      summary: `견적 목록 CSV 내보내기 (${matched}건)`,
+      targetType: "QuoteExport",
       targetId: "-",
     },
   });

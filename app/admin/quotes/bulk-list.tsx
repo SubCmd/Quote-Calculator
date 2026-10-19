@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
+import { formatKRW } from "@/lib/money";
+import { sumTotals } from "@/lib/quote-sum";
+import { selectAllLabel, toggleAll } from "@/lib/select-all";
 
 /**
  * 목록 한 줄. **금액·일시는 서버가 이미 문자열로 만들어 넘긴다.**
@@ -15,6 +18,11 @@ export interface BulkListRow {
   customerName: string;
   customerPhone: string;
   totalText: string;
+  /**
+   * 총계를 더하는 데 쓰는 정수. (ADR-0049) 줄에 표시하는 것은 `totalText` 다.
+   * 더하는 식은 `src/lib/quote-sum.ts` 에만 있고 이 컴포넌트가 적지 않는다.
+   */
+  totalAmount: number;
   paymentText: string;
   statusText: string;
   /** 취소·만료처럼 흐리게 그릴 상태인가. 서버가 정한다. */
@@ -48,12 +56,14 @@ function confirmText(action: Action, count: number): string {
 
 /**
  * 견적 목록. 줄마다 체크박스를 두고 고른 건을 하단 버튼으로 처리한다. (ADR-0041)
+ * 고른 줄의 총액 합을 총액 칸 아래에 보여준다. (ADR-0049)
  *
- * **전체 선택 체크박스를 두지 않는다.** 입력 하나가 20건을 고르게 만들면, 지울 생각이
- * 없던 건이 선택에 들어온 것을 읽지 못한다. (ADR-0026 과 같은 선)
+ * **전체 선택은 버튼이고 그 선택으로는 지울 수 없다.** (ADR-0049) ADR-0041 이 전체 선택을
+ * 금지한 이유는 입력 하나가 20건을 고르게 만들면 지울 생각이 없던 건이 선택에 들어온 것을
+ * 읽지 못하기 때문이다. 그 위험은 `삭제` 에서 오므로 둘을 끊었다.
  *
  * 삭제 버튼 비활성은 **보조**다. 확정 건 판정은 서버가 다시 한다. 목록이 낡은 사이에
- * 상태가 바뀌었을 수 있다.
+ * 상태가 바뀌었을 수 있다. 전체 선택 잠금은 서버가 알 수 없는 화면 쪽 장치다.
  */
 export function BulkQuoteList({
   rows,
@@ -68,14 +78,30 @@ export function BulkQuoteList({
   const [pending, setPending] = useState<Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  /** 지금 선택에 전체 선택으로 들어온 건이 있는가. 있으면 삭제를 열지 않는다. */
+  const [fromSelectAll, setFromSelectAll] = useState(false);
+
+  const allIds = rows.map((row) => row.publicId);
+  const pickedIds = [...selected];
 
   const toggle = (publicId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(publicId)) next.delete(publicId);
       else next.add(publicId);
+      // 선택이 비면 전체 선택으로 들어온 건도 남아 있지 않다.
+      if (next.size === 0) setFromSelectAll(false);
       return next;
     });
+    setError(null);
+    setDone(null);
+  };
+
+  /** 전부 켜져 있지 않으면 전부 켜고, 전부 켜져 있으면 전부 끈다. (ADR-0043 과 같은 판정) */
+  const pressSelectAll = () => {
+    const next = toggleAll(allIds, pickedIds);
+    setSelected(new Set(next));
+    setFromSelectAll(next.length > 0);
     setError(null);
     setDone(null);
   };
@@ -107,6 +133,7 @@ export function BulkQuoteList({
 
       // 처리한 건은 목록에서 빠진다. 선택을 비워 두지 않으면 없는 행을 가리킨다.
       setSelected(new Set());
+      setFromSelectAll(false);
       setDone(
         `${body.count}건을 ${action === "delete" ? "삭제" : "숨김"} 처리했습니다.`,
       );
@@ -120,6 +147,17 @@ export function BulkQuoteList({
 
   return (
     <>
+      <div className="list-toolbar">
+        <button
+          type="button"
+          className="ghost"
+          disabled={pending !== null}
+          onClick={pressSelectAll}
+        >
+          {selectAllLabel("이 페이지", allIds, pickedIds)}
+        </button>
+      </div>
+
       <table className="quote-list">
         <thead>
           <tr>
@@ -175,12 +213,24 @@ export function BulkQuoteList({
             </tr>
           ))}
         </tbody>
+        {/* 총계는 더해진 칸 바로 아래에 선다. (ADR-0049) */}
+        <tfoot>
+          <tr>
+            <th className="total-label" colSpan={5} scope="row">
+              총계 ({picked.length}건)
+            </th>
+            <td className="num total-sum" aria-live="polite">
+              {formatKRW(sumTotals(picked))}
+            </td>
+            <td colSpan={2} />
+          </tr>
+        </tfoot>
       </table>
 
       <div className="bulk-bar">
         <p className="bulk-count">
           {picked.length === 0
-            ? "정리할 견적을 골라 주세요."
+            ? "총계를 보거나 정리할 견적을 골라 주세요."
             : `${picked.length}건 선택`}
         </p>
 
@@ -199,7 +249,10 @@ export function BulkQuoteList({
             type="button"
             className="ghost danger"
             disabled={
-              picked.length === 0 || blocked.length > 0 || pending !== null
+              picked.length === 0 ||
+              blocked.length > 0 ||
+              fromSelectAll ||
+              pending !== null
             }
             onClick={() => run("delete")}
           >
@@ -207,6 +260,12 @@ export function BulkQuoteList({
           </button>
         </div>
 
+        {fromSelectAll && picked.length > 0 && (
+          <p className="hint">
+            전체 선택으로 고른 건은 지울 수 없습니다. 지울 건은 한 줄씩 골라
+            주세요. 숨기기는 그대로 쓸 수 있습니다.
+          </p>
+        )}
         {blocked.length > 0 && (
           <p className="hint">
             선택에 확정된 견적 {blocked.length}건이 있습니다. 보존 의무가 있어

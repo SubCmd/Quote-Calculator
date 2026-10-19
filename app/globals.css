@@ -1655,7 +1655,8 @@ a.primary {
   font-size: 0.75rem;
   font-weight: 600;
 }
-.search-field input {
+.search-field input,
+.search-field select {
   border: 1px solid var(--line-strong);
   border-radius: 0.5rem;
   padding: 0.4375rem 0.625rem;
@@ -1702,6 +1703,19 @@ a.primary {
   color: #fff;
 }
 
+/* 목록 위 내보내기 줄. 조건 칩과 표 사이다. (ADR-0050) */
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.list-actions .hint {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+
 .quote-list {
   width: 100%;
   border-collapse: collapse;
@@ -1732,8 +1746,16 @@ a.primary {
   overflow-x: auto;
 }
 
-/* ── 목록 일괄 작업 (ADR-0041) ─────────────────────────────
-   줄마다 체크박스로 고르고 하단 버튼으로 처리한다. 전체 선택 입력은 두지 않는다. */
+/* ── 목록 일괄 작업 (ADR-0041, ADR-0049) ───────────────────
+   줄마다 체크박스로 고르고 하단 버튼으로 처리한다. 전체 선택은 체크가 아니라
+   버튼이고, 그 선택으로는 지울 수 없다. */
+
+/* 전체 선택 버튼. 눌린 모양도 켜진 모양도 없다. 선택은 체크박스에만 있다. (ADR-0049) */
+.list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
 
 .quote-list .pick {
   width: 2.5rem;
@@ -1748,6 +1770,24 @@ a.primary {
 /* 고른 줄이 한눈에 보여야 한다. 건수만으로는 무엇을 골랐는지 읽지 못한다. */
 .quote-list tr.picked {
   background: var(--brand-soft, #f2f6ff);
+}
+
+/* 총계는 더해진 총액 칸 바로 아래에 선다. (ADR-0049) */
+.quote-list tfoot th,
+.quote-list tfoot td {
+  border-bottom: none;
+  border-top: 2px solid var(--line-strong);
+  background: #fafafb;
+}
+.quote-list .total-label {
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.quote-list .total-sum {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .bulk-bar {

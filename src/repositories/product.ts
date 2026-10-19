@@ -114,3 +114,23 @@ export async function findCatalog(now: Date): Promise<CatalogProduct[]> {
     };
   });
 }
+
+/** 상품 필터의 선택지 한 줄 */
+export interface ProductChoiceRow {
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+/**
+ * 관리자 목록의 상품 필터 선택지. (ADR-0049)
+ *
+ * `findCatalog` 과 달리 **비활성 상품도 넣는다.** 끈 상품의 과거 견적을 찾을 길이
+ * 없어지면 안 된다. 좁히는 것은 고객 화면뿐이다. (ADR-0046 과 같은 선)
+ */
+export async function findProductChoices(): Promise<ProductChoiceRow[]> {
+  return prisma.product.findMany({
+    orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }],
+    select: { code: true, name: true, isActive: true },
+  });
+}

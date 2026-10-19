@@ -1,12 +1,21 @@
 import type { PaymentMethod, QuoteStatus } from "@prisma/client";
+import { toCsv } from "@/lib/csv";
 import { formatPhone } from "@/lib/masking";
+import { paymentMethodLabel } from "@/lib/payment-method";
+import {
+  findProductChoices,
+  type ProductChoiceRow,
+} from "@/repositories/product";
+import type { PaymentMethodFilter } from "@/repositories/quote";
 import {
   deleteQuotes,
   findQuoteDetail,
   findQuoteList,
   findQuoteStatus,
   findQuotesForBulkAction,
+  findQuotesForExport,
   hideQuotes,
+  logQuoteExport,
   logQuoteSearch,
   logQuoteView,
   setQuoteHidden,
@@ -23,6 +32,9 @@ import {
 import type { SavedQuoteItem } from "./types";
 
 export const PAGE_SIZE = 20;
+
+// 화면이 Repository 를 import 하지 않도록 여기서 다시 내보낸다. (`.claude/rules/architecture.md`)
+export type { PaymentMethodFilter, ProductChoiceRow };
 
 export interface AdminQuoteListItem {
   publicId: string;
@@ -61,6 +73,22 @@ export interface QuoteSearch {
   until: Date | null;
   /** `true` 면 숨긴 견적만 본다. 되돌릴 자리가 그 목록이다. (ADR-0035) */
   hidden: boolean;
+  /** 이 상품이 들어간 견적만. 비활성 상품도 조건이 될 수 있다. (ADR-0049) */
+  productCode: string | null;
+  /** 입력한 연락처. 하이픈·공백이 섞여 들어온다. (ADR-0049) */
+  customerPhone: string | null;
+  /** `"NONE"` 은 고객이 아직 고르지 않은 건이다. `null` 은 조건 없음. */
+  paymentMethod: PaymentMethodFilter | null;
+}
+
+/**
+ * 번호는 숫자만 저장한다. 입력의 하이픈·공백을 떼어야 맞는다. (ADR-0049)
+ * 숫자가 하나도 없으면 조건으로 쓰지 않는다. 빈 문자열은 모든 행에 맞는다.
+ */
+function phoneDigits(raw: string | null): string | null {
+  if (raw === null) return null;
+  const digits = raw.replace(/\D/g, "");
+  return digits ? digits : null;
 }
 
 export async function listQuotes(
@@ -69,15 +97,17 @@ export async function listQuotes(
   actor: string,
   now: Date,
 ): Promise<AdminQuoteList> {
-  const { rows, total } = await findQuoteList(
-    PAGE_SIZE,
-    (page - 1) * PAGE_SIZE,
-    search,
-  );
+  const customerPhone = phoneDigits(search.customerPhone);
 
-  // 이름으로 찾아본 것 자체가 개인정보 조회다. (ADR-0015)
+  const { rows, total } = await findQuoteList(PAGE_SIZE, (page - 1) * PAGE_SIZE, {
+    ...search,
+    customerPhone,
+  });
+
+  // 이름·번호로 찾아본 것 자체가 개인정보 조회다. (ADR-0015, ADR-0049)
   // 검색어는 넘기지 않는다. 기록할 것은 찾아봤다는 사실이다. (ADR-0022)
-  if (search.customerName !== null) await logQuoteSearch(total, actor);
+  if (search.customerName !== null || customerPhone !== null)
+    await logQuoteSearch(total, actor);
 
   return {
     items: rows.map((row) => ({
@@ -96,6 +126,104 @@ export async function listQuotes(
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)),
+  };
+}
+
+/**
+ * 상품 필터의 선택지. 비활성 상품도 들어간다. (ADR-0049)
+ * 끈 상품의 과거 견적을 찾을 길이 없어지면 안 된다.
+ */
+export async function listProductChoices(): Promise<ProductChoiceRow[]> {
+  return findProductChoices();
+}
+
+/**
+ * 한 번에 내보낼 수 있는 행 수. (ADR-0050)
+ * 상한 없는 조회를 두지 않는다. 숫자가 하나 적혀 있는 것과 없는 것은 다르다.
+ */
+export const EXPORT_LIMIT = 1000;
+
+/**
+ * `publicId` 를 담지 않는다. 그 값은 인증 없는 고객 링크의 주소라서(ADR-0013),
+ * 목록 전체가 든 파일이 모든 고객의 견적을 여는 열쇠 묶음이 된다. (ADR-0050)
+ */
+const EXPORT_HEADER = [
+  "요청일시",
+  "상품",
+  "고객명",
+  "연락처",
+  "총액",
+  "결제 방식",
+  "상태",
+];
+
+/** 엑셀이 날짜로 읽는 형태. 한국은 서머타임이 없어서 오프셋을 고정해도 된다. */
+function exportDateTime(value: Date): string {
+  // `sv-SE` 는 `YYYY-MM-DD HH:mm` 으로 찍는다. 자리를 손으로 조립하지 않는다.
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
+export type ExportQuotesResult =
+  | { ok: true; csv: string; filename: string; count: number }
+  | { ok: false; total: number; limit: number; error: string };
+
+/**
+ * 좁힌 조건의 목록을 CSV 한 장으로 만든다. (ADR-0050)
+ *
+ * **금액은 포맷하지 않는다.** `formatKRW` 를 부르지 않고 정수를 문자열로만 바꾼다.
+ * 쉼표와 `원` 이 붙으면 엑셀에서 문자열이 되어 더해지지 않는다. 내보내기를 만든
+ * 이유가 엑셀이 `SUM` 하게 하는 것이다.
+ *
+ * 연락처에는 하이픈을 넣는다. `01012345678` 을 엑셀이 숫자로 읽어 앞의 0 을 떼어 먹는다.
+ */
+export async function exportQuotes(
+  search: QuoteSearch,
+  actor: string,
+  now: Date,
+): Promise<ExportQuotesResult> {
+  const customerPhone = phoneDigits(search.customerPhone);
+
+  const { rows, total, exceeded } = await findQuotesForExport(
+    { ...search, customerPhone },
+    EXPORT_LIMIT,
+  );
+
+  if (exceeded)
+    return {
+      ok: false,
+      total,
+      limit: EXPORT_LIMIT,
+      error: `조건에 맞는 견적이 ${total}건입니다. 한 번에 ${EXPORT_LIMIT}건까지 내보낼 수 있습니다. 기간을 좁혀 주세요.`,
+    };
+
+  const csv = toCsv(
+    EXPORT_HEADER,
+    rows.map((row) => [
+      exportDateTime(row.calculatedAt),
+      row.productNames[0] ?? "—",
+      row.customerName ?? "—",
+      formatPhone(row.customerPhone),
+      String(row.totalAmount),
+      row.paymentMethod ? paymentMethodLabel(row.paymentMethod) : "미선택",
+      statusLabel(displayStatus(row.status, row.expiresAt, now)),
+    ]),
+  );
+
+  // 검색 기록과 겹쳐 남기지 않는다. 한 동작에 로그는 하나다.
+  await logQuoteExport(rows.length, actor);
+
+  return {
+    ok: true,
+    csv,
+    filename: `quotes-${exportDateTime(now).slice(0, 10).replace(/-/g, "")}.csv`,
+    count: rows.length,
   };
 }
 
