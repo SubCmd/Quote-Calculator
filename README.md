@@ -85,7 +85,7 @@
 | # | 항목 | 왜 |
 | ---- | ---- | ---- |
 | 1 | **개인정보 파기 수단** | 보유기간(미확정 1년 / `CONFIRMED` 5년)은 ADR-0013 에 정해 두고 실행 수단이 없다 |
-| 2 | **운영 DB 에 상품 5종 반영** | 금액은 전부 확정값이다 (Q-9 해소). 남은 것은 운영 DB 에 넣는 일이고, 상품·단계는 `/admin` 상품 설계에서 만든다 (ADR-0046, ADR-0048) |
+| 2 | **운영 DB 에 상품 5종 반영** | 금액은 전부 확정값이다 (Q-9 해소). 남은 것은 운영 DB 에 넣는 일이다. 정시 상담은 `npx tsx scripts/apply-jeongsi.ts --apply`, 나머지는 `/admin` 상품 설계에서 만든다 (ADR-0046, ADR-0048) |
 | 3 | **강한 `ADMIN_PASSWORD`** | 시도 제한(ADR-0020)은 대입을 느리게 만들 뿐이다. 10분에 5회라도 `1234` 는 언젠가 뚫린다 |
 
 **개인정보 수집·이용 동의**는 ADR-0018 로 해소됐다. 고지 문구의 보유기간은 ADR-0013 의 실제
@@ -115,10 +115,14 @@ docker run -d --name quote-calc-db \
 
 cp .env.example .env        # DATABASE_URL, ADMIN_PASSWORD, ADMIN_SESSION_SECRET 설정
 npx prisma migrate dev      # 스키마 반영
-npm run db:seed             # 상품 4종 투입 (금액은 대부분 임시값)
+npm run db:seed             # 상품 5종 투입 (금액은 전부 확정값)
 npm run dev                 # http://localhost:3000
 ```
 
 `ADMIN_PASSWORD` / `ADMIN_SESSION_SECRET` 중 하나라도 없으면 `/admin`은 404로 닫힌다.
+
+**`db:seed` 는 운영 DB 에 돌리지 않는다.** 상품을 다시 심기 전에 `quote` · `auditLog` 까지
+비우므로 실제 고객의 플랜이 사라진다. 이미 쓰고 있는 DB 에 상품을 넣는 것은
+`scripts/apply-*.ts` 쪽이고, 그것들은 지우지 않고 없는 것만 더한다.
 
 계산 로직만 확인하려면 DB 없이 `npm test`로 충분하다.
